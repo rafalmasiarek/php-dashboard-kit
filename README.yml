@@ -16,7 +16,357 @@ badges:
     image: https://img.shields.io/packagist/l/rafalmasiarek/dashboard-kit
     url: https://packagist.org/packages/rafalmasiarek/dashboard-kit
 
-context: []
+
+context:
+  - |
+    Slim 4 dashboard framework. Provides module auto-discovery, dynamic navbar, session-based auth (via AuthKit), CSRF protection, Twig templating, structured logging, mail, and a plugin extension system.
+    
+    ## Requirements
+    
+    - PHP 8.2+
+    - MySQL 8 or SQLite
+    - Composer
+    
+    ## Installation
+    
+    ```bash
+    composer require rafalmasiarek/dashboard-kit
+    ```
+    
+    ## Quick start
+    
+    ```php
+    use DI\ContainerBuilder;
+    use rafalmasiarek\DashboardKit\Dashboard;
+    use Slim\Factory\AppFactory;
+    
+    $container = (new ContainerBuilder())->build();
+    AppFactory::setContainer($container);
+    $app = AppFactory::create();
+    
+    Dashboard::create($app, $container, [
+        'db' => [
+            'driver'   => 'mysql',
+            'host'     => 'localhost',
+            'dbname'   => 'myapp',
+            'user'     => 'root',
+            'password' => 'secret',
+        ],
+        'modules_path'       => __DIR__ . '/modules',
+        'admin_modules_path' => __DIR__ . '/admin_modules',
+        'storage_path'       => __DIR__ . '/storage',
+        'templates_path'     => __DIR__ . '/templates',
+        'app' => [
+            'env'  => 'production',
+            'name' => 'My App',
+        ],
+    ]);
+    
+    $app->run();
+    ```
+    
+    ## Module structure
+    
+    Each module is a directory containing `module.php`:
+    
+    ```php
+    // modules/notes/module.php
+    return [
+        'title'  => 'Notes',
+        'icon'   => '📝',
+        'render' => function ($req, $res, $args, $twig, $db, $container) {
+            return $twig->render($res, 'notes/index.twig', []);
+        },
+    ];
+    ```
+    
+    Modules appear in the navbar automatically. Admin modules (under `admin_modules_path`) appear in the `/admin` panel.
+    
+    ## Database schema
+    
+    Declare tables directly in `module.php` under the `schema` key. On every boot the framework compares a hash of each table's definition against the stored hash — unchanged tables are skipped entirely. Changed or new tables are created (`CREATE TABLE IF NOT EXISTS`) and any new columns are added (`ALTER TABLE ADD COLUMN`). Columns are never dropped.
+    
+    ```php
+    // modules/notes/module.php
+    return [
+        'title'  => 'Notes',
+        'schema' => [
+            'notes' => [
+                'columns' => [
+                    'title'   => ['type' => 'string', 'null' => false],
+                    'body'    => ['type' => 'text'],
+                    'user_id' => ['type' => 'uuid', 'null' => false],
+                    'active'  => ['type' => 'tinyint', 'default' => 1],
+                ],
+                'indexes' => [
+                    ['columns' => ['user_id']],
+                ],
+            ],
+        ],
+        'render' => function ($req, $res, $args, $twig, $db, $container) { ... },
+    ];
+    ```
+    
+    Every managed table automatically gets `id` (UUID `CHAR(36)`) and `created_at` (DATETIME, DEFAULT CURRENT_TIMESTAMP). Supported column types: `string`, `text`, `int`/`integer`, `bigint`, `tinyint`, `bool`/`boolean`, `decimal`, `float`, `datetime`, `date`, `json`, `uuid`.
+    
+    ### Tables outside modules
+    
+    Tables that do not belong to any module can be declared at the top level of the config under `schema`:
+    
+    ```php
+    Dashboard::create($app, $container, [
+        // ...
+        'schema' => [
+            'shared_settings' => [
+                'columns' => [
+                    'key'   => ['type' => 'string', 'null' => false, 'unique' => true],
+                    'value' => ['type' => 'text'],
+                ],
+            ],
+        ],
+    ]);
+    ```
+    
+    ### Table prefix
+    
+    Add `table_prefix` to the config to namespace all managed tables. System tables (`_schema_state`, `_table_version`, `_query_cache`) are never prefixed.
+    
+    ```php
+    Dashboard::create($app, $container, [
+        'table_prefix' => 'app_',
+        // module table "notes" → "app_notes"
+    ]);
+    ```
+    
+    In handlers that build raw SQL, use `CachingPdo::table()` to apply the prefix consistently:
+    
+    ```php
+    $stmt = $db->prepare("SELECT * FROM `" . $db->table('notes') . "` WHERE id = ?");
+    ```
+    
+    The prefix is also available as `db.table_prefix` in the container.
+    
+    ### Seed data
+    
+    Declare default rows under the `seed` key (top-level config or per-module). Each seed table is paired with a `match` column for the existence check — rows are inserted only when no matching record exists, making seeds idempotent on every boot.
+    
+    ```php
+    'seed' => [
+        'users' => [
+            'match'   => 'email',        // column used for the existence check before inserting
+            'with_id' => true,           // auto-generate UUID for id if absent (default)
+            'rows'    => [
+                [
+                    'email'         => 'admin@example.com',
+                    'role'          => 'admin',
+                    'active'        => 1,
+                    'password_hash' => password_hash('secret', PASSWORD_BCRYPT),
+                ],
+            ],
+        ],
+        'api_scopes' => [
+            'match'   => 'name',
+            'with_id' => false,          // table uses AUTO_INCREMENT — skip UUID injection
+            'rows'    => [
+                ['name' => 'notes:read',  'description' => 'Read notes'],
+                ['name' => 'notes:write', 'description' => 'Manage notes'],
+            ],
+        ],
+    ],
+    ```
+    
+    `created_at` is never injected — the database fills it in via `DEFAULT CURRENT_TIMESTAMP`.
+    
+    ## Query cache
+    
+    All SELECT queries issued through `PDO::class` from the container are transparently cached — no code changes required in handlers. The cache is version-keyed: any write to a table automatically makes all cached SELECT results for that table unreachable without explicit invalidation.
+    
+    Cache behaviour by statement type:
+    
+    | Type | Behaviour |
+    |---|---|
+    | SELECT | Checks cache before executing; stores `fetchAll()` result on miss |
+    | INSERT / UPDATE / DELETE / REPLACE | Executes normally; bumps version counter for affected tables |
+    | System tables (`_query_cache`, `_table_version`, `_schema_state`) | Always bypass cache |
+    
+    Only `fetchAll()` results are cached. `fetch()` and `fetchColumn()` always hit the database.
+    
+    Default TTL is 300 seconds. The cache is stored in the `_query_cache` table and never goes stale: a write to table `T` makes all cached SELECT keys that referenced `T` unreachable — they can never be served after the write.
+    
+    ## Plugin extension points
+    
+    Plugins can extend the UI without modifying core templates:
+    
+    ### Settings sections
+    
+    Register a section card on the `/settings` page:
+    
+    ```php
+    $container->get(SettingsSectionRegistry::class)->register('my-plugin', [
+        'title' => 'My Plugin',
+        'path'  => '/settings/my-plugin',
+        'order' => 10,
+    ]);
+    ```
+    
+    ### User action buttons
+    
+    Register a button in Admin → Users per-user row:
+    
+    ```php
+    $container->get(UserActionRegistry::class)->register('my-action', [
+        'label'        => 'Manage',
+        'path_pattern' => '/admin/my-plugin/users/{id}',
+        'order'        => 10,
+    ]);
+    ```
+    
+    ### Form slots
+    
+    Inject HTML into the login or register forms without modifying core templates. Resolve `FormSlotRegistry` from the container and call `register()` before `run()`.
+    
+    Built-in slots:
+    
+    | Form | Slot | Position |
+    |------|------|----------|
+    | `login` | `form_fields` | Inside `<form>`, before the submit button |
+    | `login` | `scripts` | In `{% block scripts %}`, outside the form |
+    | `register` | `form_fields` | Inside `<form>`, before the submit button |
+    | `register` | `scripts` | At the end of `{% block scripts %}` |
+    
+    ```php
+    use rafalmasiarek\DashboardKit\Extension\FormSlotRegistry;
+    
+    $registry = $dashboard->getContainer()->get(FormSlotRegistry::class);
+    
+    // Static HTML string
+    $registry->register('login', 'form_fields', '<div class="g-recaptcha mb-3" data-sitekey="..."></div>');
+    
+    // Callable — evaluated at render time, can inspect session or other runtime state
+    $registry->register('login', 'form_fields', static function (): string {
+        return ((int) ($_SESSION['login_fails'] ?? 0)) >= 3
+            ? '<div class="g-recaptcha mb-3" data-sitekey="..."></div>'
+            : '';
+    });
+    
+    // Optional order parameter — lower numbers render first (default: 100)
+    $registry->register('login', 'form_fields', $tosCheckbox, order: 10);
+    $registry->register('login', 'form_fields', $captchaWidget, order: 50);
+    ```
+    
+    In Twig, slots are rendered via `{{ form_slot('login', 'form_fields') }}` — already present in the core templates, no template changes needed.
+    
+    See [`docs/form-slots.md`](docs/form-slots.md) for the full reference including the PHP-DI callable pitfall.
+    
+    ### Auth failure hooks
+    
+    Emitted after failed credential checks, useful for rate limiting and abuse detection:
+    
+    ```php
+    $dashboard->on('login_failed', function (string $email, string $ip) {
+        // track failure, increment counter, notify, etc.
+    });
+    
+    $dashboard->on('register_failed', function (string $email, string $errorMessage, string $ip) {
+        // track registration abuse, duplicate detection, etc.
+    });
+    ```
+    
+    ## Error handling
+    
+    `SafeErrorHandler` handles all Slim errors with content negotiation:
+    
+    - JSON clients (`Accept: application/json`, AJAX, CLI) receive:
+      ```json
+      { "status": "error", "code": 404, "message": "Not found.", "data": {}, "errors": [] }
+      ```
+    - Browsers receive a Twig error template (`errors/{code}.twig`, `errors/5xx.twig`, `errors/error.twig`)
+    - Secrets (tokens, passwords, API keys) are redacted from all error output
+    
+    ## Logging
+    
+    Named Monolog channels in key=value format, registered as `logger.{name}` in the container:
+    
+    ```php
+    // config
+    'logging' => [
+        'channels' => [
+            'app'   => ['path' => storage_path('logs/app.log'),   'level' => 'info'],
+            'audit' => ['path' => storage_path('logs/audit.log'), 'level' => 'info'],
+            'error' => ['path' => storage_path('logs/error.log'), 'level' => 'warning'],
+        ],
+    ],
+    ```
+    
+    Audit events use dot-notation names: `dashboard.login`, `dashboard.register`, `dashboard.role_changed`, etc.
+    
+    ## Redirect after login
+    
+    When `AuthMiddleware` blocks an unauthenticated request it redirects to `/login?from=<encoded-path>`. After successful login the controller redirects back to that path instead of the default `/`.
+    
+    Only same-origin paths are accepted (`from` must start with `/` and not with `//`) to prevent open redirect attacks.
+    
+    Logged-in users visiting `/login` or `/register` are redirected immediately to `/` — these routes are guest-only.
+    
+    ## Built-in routes
+    
+    | Route | Description |
+    |-------|-------------|
+    | `GET /` | Home page — auth-aware, renders `home.twig` |
+    | `GET/POST /login` | Login |
+    | `GET /logout` | Logout |
+    | `GET/POST /register` | Registration |
+    | `GET /settings` | User settings |
+    | `GET /admin` | Admin panel |
+    | `GET /admin/users` | User management |
+    
+    ## Home page
+    
+    `GET /` renders the built-in `home.twig`. The template checks `auth.isLoggedIn()` and shows different content for guests and authenticated users.
+    
+    To customise, place `home.twig` in your application's `templates/` directory — it takes precedence over the built-in:
+    
+    ```twig
+    {# templates/home.twig #}
+    {% extends "layout.twig" %}
+    
+    {% block content %}
+    {% if auth.isLoggedIn() %}
+        <h2>Welcome, {{ auth.getUser().get('email') }}</h2>
+    {% else %}
+        <h1>{{ app_name }}</h1>
+        <a href="/login" class="btn btn-primary">Log in</a>
+    {% endif %}
+    {% endblock %}
+    ```
+    
+    Available Twig globals on this page: `auth`, `app_name`, `modules`, `registration_enabled`, `flash`.
+    
+    ## Templating and layout customisation
+    
+    `layout.twig` is split into named blocks that can be overridden independently:
+    
+    | Block | Default | Use |
+    |---|---|---|
+    | `{% block head %}` | empty | Extra `<link>` / `<meta>` tags |
+    | `{% block navbar %}` | Bootstrap navbar | Replace or remove the navbar |
+    | `{% block header %}` | empty | Hero/banner below navbar |
+    | `{% block content %}` | empty | Main page body |
+    | `{% block footer %}` | empty | Site-wide footer |
+    | `{% block scripts %}` | empty | Extra scripts before `</body>` |
+    
+    To override a single block without replacing the whole layout, extend `@dashboard-kit/layout.twig` (the namespace avoids infinite recursion when your file is also called `layout.twig`):
+    
+    ```twig
+    {# templates/layout.twig #}
+    {% extends "@dashboard-kit/layout.twig" %}
+    
+    {% block footer %}
+    <footer class="text-center text-muted small py-4">&copy; {{ "now"|date("Y") }} {{ app_name }}</footer>
+    {% endblock %}
+    ```
+    
+    See [`docs/templating.md`](docs/templating.md) for the full reference.
 
 authors:
   - name: Rafał Masiarek
