@@ -1,0 +1,15 @@
+{% extends "emails/layout.twig" %}
+
+{% block subject %}Activate your account{% endblock %}
+
+{% block content %}
+<h2>Welcome to {{ app_name }}!</h2>
+<p>Thanks for registering. Click the button below to activate your account:</p>
+
+<a href="{{ activation_link }}" class="btn">Activate Account</a>
+
+<p class="link">Or copy this link into your browser:<br>
+<a href="{{ activation_link }}">{{ activation_link }}</a></p>
+
+<p>If you did not create an account, you can safely ignore this email.</p>
+{% endblock %}

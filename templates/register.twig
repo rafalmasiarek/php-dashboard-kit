@@ -1,0 +1,194 @@
+{% extends "layout.twig" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-5 col-lg-4">
+        <h2 class="mb-4">Register</h2>
+
+        <form method="post" action="{{ dash }}/register" id="register-form">
+            {{ csrf_field('register') }}
+            <div class="mb-3">
+                <label class="form-label" for="email">Email <span class="text-danger">*</span></label>
+                <input type="email" id="email" name="email" class="form-control" required autofocus
+                       value="{{ input.email ?? '' }}">
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="password">Password <span class="text-danger">*</span></label>
+                <input type="password" id="password" name="password" class="form-control" required>
+                {% if password_strength.enabled ?? false %}
+                <div class="mt-2">
+                    <div class="progress" style="height: 5px;">
+                        <div id="pw-bar" class="progress-bar" style="width:0%;transition:width .2s,background-color .2s"></div>
+                    </div>
+                    <small id="pw-label" class="text-muted d-block mt-1" style="min-height:1.2em"></small>
+                </div>
+                {% endif %}
+            </div>
+            <div class="mb-3">
+                <label class="form-label" for="password_confirm">Repeat password <span class="text-danger">*</span></label>
+                <input type="password" id="password_confirm" name="password_confirm" class="form-control" required>
+                <div id="pw-match-msg" class="form-text" style="min-height:1.2em"></div>
+            </div>
+            {% for name, field in user_fields %}
+            <div class="mb-3">
+                <label class="form-label" for="uf_{{ name }}">
+                    {{ field.label }}{% if field.required %} <span class="text-danger">*</span>{% endif %}
+                </label>
+                {% if field.type == 'textarea' %}
+                <textarea id="uf_{{ name }}" name="{{ name }}" class="form-control"
+                          {% if field.required %}required{% endif %}
+                          rows="3">{{ input[name] ?? '' }}</textarea>
+                {% else %}
+                <input type="{{ field.type }}" id="uf_{{ name }}" name="{{ name }}" class="form-control"
+                       {% if field.max is defined and field.type != 'date' %}maxlength="{{ field.max }}"{% endif %}
+                       {% if field.required %}required{% endif %}
+                       value="{{ input[name] ?? '' }}">
+                {% endif %}
+            </div>
+            {% endfor %}
+            {{ form_slot('register', 'form_fields') }}
+            <button class="btn btn-primary w-100">Create account</button>
+        </form>
+
+        <p class="mt-3 text-center text-muted">
+            Already have an account? <a href="{{ dash }}/login">Login</a>
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var pw  = document.getElementById('password');
+    var pw2 = document.getElementById('password_confirm');
+    var msg = document.getElementById('pw-match-msg');
+    var frm = document.getElementById('register-form');
+
+    function checkMatch() {
+        if (!pw2.value) {
+            msg.textContent = '';
+            msg.className   = 'form-text';
+            pw2.setCustomValidity('');
+            return;
+        }
+        if (pw.value === pw2.value) {
+            msg.textContent = 'Passwords match.';
+            msg.className   = 'form-text text-success';
+            pw2.setCustomValidity('');
+        } else {
+            msg.textContent = 'Passwords do not match.';
+            msg.className   = 'form-text text-danger';
+            pw2.setCustomValidity('Passwords do not match.');
+        }
+    }
+
+    pw.addEventListener('input',  checkMatch);
+    pw2.addEventListener('input', checkMatch);
+
+    frm.addEventListener('submit', function (e) {
+        if (pw.value !== pw2.value) {
+            e.preventDefault();
+            pw2.focus();
+        }
+    });
+})();
+</script>
+{% if password_strength.enabled ?? false %}
+<script>
+(function () {
+    const rules  = {{ password_strength.rules|json_encode|raw }};
+    const minScore = {{ password_strength.min_score|default(2) }};
+    const labels = ['Very Weak', 'Weak', 'Fair', 'Strong', 'Very Strong'];
+    const colors = ['danger',    'danger', 'warning', 'info', 'success'];
+
+    function hasSequence(pwd, length) {
+        for (var i = 0; i <= pwd.length - length; i++) {
+            var asc = true, desc = true;
+            for (var j = 1; j < length; j++) {
+                var d = pwd.charCodeAt(i + j) - pwd.charCodeAt(i + j - 1);
+                if (d !== 1)  asc  = false;
+                if (d !== -1) desc = false;
+            }
+            if (asc || desc) return true;
+        }
+        return false;
+    }
+
+    function score(pwd) {
+        var len = pwd.length;
+
+        if (rules.forbidden_chars.enabled) {
+            for (var ci = 0; ci < rules.forbidden_chars.chars.length; ci++) {
+                if (pwd.indexOf(rules.forbidden_chars.chars[ci]) !== -1) return 0;
+            }
+        }
+
+        var earned = 0, max = 0;
+
+        if (rules.min_length.enabled) {
+            max += rules.min_length.points;
+            if (len >= rules.min_length.value) earned += rules.min_length.points;
+        }
+
+        if (rules.diversity.enabled) {
+            var ppt = rules.diversity.points_per_type;
+            max += ppt * 4;
+            if (/[a-z]/.test(pwd))        earned += ppt;
+            if (/[A-Z]/.test(pwd))        earned += ppt;
+            if (/\d/.test(pwd))           earned += ppt;
+            if (/[^a-zA-Z0-9]/.test(pwd)) earned += ppt;
+        }
+
+        if (rules.digit_ratio.enabled && len > 0) {
+            max += rules.digit_ratio.points;
+            var dr = (pwd.match(/\d/g) || []).length / len;
+            if (dr >= rules.digit_ratio.min_ratio && dr <= rules.digit_ratio.max_ratio)
+                earned += rules.digit_ratio.points;
+        }
+
+        if (rules.special_ratio.enabled && len > 0) {
+            max += rules.special_ratio.points;
+            var sr = (pwd.match(/[^a-zA-Z0-9]/g) || []).length / len;
+            if (sr >= rules.special_ratio.min_ratio) earned += rules.special_ratio.points;
+        }
+
+        if (max <= 0) return 0;
+
+        var penalty = 0;
+        if (rules.no_repeats.enabled) {
+            var re = new RegExp('(.)\\1{' + rules.no_repeats.max_repeat + ',}');
+            if (re.test(pwd)) penalty += rules.no_repeats.penalty;
+        }
+        if (rules.no_sequences.enabled) {
+            if (hasSequence(pwd.toLowerCase(), rules.no_sequences.length))
+                penalty += rules.no_sequences.penalty;
+        }
+
+        var eff = Math.max(0, earned - penalty);
+        return Math.min(4, Math.floor(eff / max * 5));
+    }
+
+    var input = document.getElementById('password');
+    var bar   = document.getElementById('pw-bar');
+    var lbl   = document.getElementById('pw-label');
+
+    input.addEventListener('input', function () {
+        if (!this.value) {
+            bar.style.width = '0%';
+            bar.className   = 'progress-bar';
+            lbl.textContent = '';
+            lbl.className   = 'text-muted d-block mt-1';
+            return;
+        }
+        var s = score(this.value);
+        bar.style.width = ((s + 1) * 20) + '%';
+        bar.className   = 'progress-bar bg-' + colors[s];
+        lbl.textContent = labels[s];
+        lbl.className   = 'small d-block mt-1 text-' + colors[s];
+    });
+})();
+</script>
+{% endif %}
+{{ form_slot('register', 'scripts') }}
+{% endblock %}

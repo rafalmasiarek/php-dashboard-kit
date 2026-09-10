@@ -1,0 +1,130 @@
+{% extends "admin-layout.twig" %}
+
+{% macro sortLink(label, col, sort, dir, q) %}
+    {% set nextDir = (sort == col and dir == 'asc') ? 'desc' : 'asc' %}
+    <a href="?sort={{ col }}&dir={{ nextDir }}{% if q %}&q={{ q|url_encode }}{% endif %}"
+       class="text-white text-decoration-none d-flex align-items-center gap-1">
+        {{- label -}}
+        {%- if sort == col %}<span class="opacity-75 ms-1">{{ dir == 'asc' ? '↑' : '↓' }}</span>{% endif %}
+    </a>
+{% endmacro %}
+
+{% block admin_content %}
+{% from _self import sortLink %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <span class="text-muted small">{{ total }} total</span>
+    <a href="{{ admin_panel }}/users/create" class="btn btn-primary">+ Create User</a>
+</div>
+
+<form method="GET" action="{{ admin_panel }}/users" class="d-flex gap-2 mb-4">
+    <input type="text" name="q" value="{{ q }}" class="form-control"
+           placeholder="Search by email…" style="max-width: 320px" autocomplete="off">
+    {% if sort and sort != 'id' %}<input type="hidden" name="sort" value="{{ sort }}">{% endif %}
+    {% if dir  and dir  != 'asc' %}<input type="hidden" name="dir"  value="{{ dir }}">{% endif %}
+    <button type="submit" class="btn btn-outline-secondary">Search</button>
+    {% if q %}<a href="{{ admin_panel }}/users" class="btn btn-outline-secondary">✕ Clear</a>{% endif %}
+</form>
+
+<table class="table table-bordered table-hover align-middle">
+    <thead class="table-dark">
+        <tr>
+            <th style="width: 55px">{{ sortLink('#',           'id',           sort, dir, q) }}</th>
+            <th>                     {{ sortLink('Email',       'email',        sort, dir, q) }}</th>
+            <th style="width: 110px">{{ sortLink('Role',        'role',         sort, dir, q) }}</th>
+            <th style="width: 120px">{{ sortLink('Status',      'active',       sort, dir, q) }}</th>
+            <th style="width: 200px">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for user in users %}
+        <tr{% if user.suspended_at %} class="table-warning"{% elseif not user.active %} class="table-secondary"{% endif %}>
+            <td class="text-muted">{{ user.id }}</td>
+            <td>
+                {{ user.email }}
+                {% if user.id == current_user_id %}
+                    <span class="badge bg-secondary ms-1">you</span>
+                {% endif %}
+            </td>
+            <td>
+                <span class="badge {% if user.role == 'admin' %}bg-danger{% else %}bg-secondary{% endif %}">
+                    {{ user.role }}
+                </span>
+            </td>
+            <td>
+                {% if user.suspended_at %}
+                    <span class="badge bg-warning text-dark">Suspended</span>
+                {% elseif not user.active %}
+                    <span class="badge bg-secondary">Inactive</span>
+                {% else %}
+                    <span class="badge bg-success">Active</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if user.id != current_user_id %}
+                <div class="d-flex gap-1 flex-wrap">
+                    <a href="{{ admin_panel }}/users/{{ user.id }}/edit" class="btn btn-sm btn-outline-primary">Edit</a>
+
+                    {% for action in user_actions %}
+                    <a href="{{ action.path_pattern|replace({'{id}': user.id}) }}"
+                       class="btn btn-sm btn-outline-secondary">{{ action.label }}</a>
+                    {% endfor %}
+
+                    {% if user.suspended_at %}
+                    <form method="POST" action="{{ admin_panel }}/users/{{ user.id }}/unsuspend">
+                        {{ csrf_field('users-unsuspend-' ~ user.id) }}
+                        <button type="submit" class="btn btn-sm btn-success">Unsuspend</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ admin_panel }}/users/{{ user.id }}/suspend">
+                        {{ csrf_field('users-suspend-' ~ user.id) }}
+                        <button type="submit" class="btn btn-sm btn-warning">Suspend</button>
+                    </form>
+                    {% endif %}
+
+                    <form method="POST" action="{{ admin_panel }}/users/{{ user.id }}/delete"
+                          onsubmit="return confirm('Delete {{ user.email|e('js') }}? This cannot be undone.')">
+                        {{ csrf_field('users-delete-' ~ user.id) }}
+                        <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                    </form>
+                </div>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+
+        {% if users is empty %}
+        <tr>
+            <td colspan="5" class="text-center text-muted py-4">
+                {% if q %}No users matching <strong>{{ q }}</strong>.{% else %}No users found.{% endif %}
+            </td>
+        </tr>
+        {% endif %}
+    </tbody>
+</table>
+
+{% if total_pages > 1 %}
+<nav>
+    <ul class="pagination pagination-sm">
+        <li class="page-item{% if page == 1 %} disabled{% endif %}">
+            <a class="page-link" href="?page={{ page - 1 }}{% if sort %}&sort={{ sort }}&dir={{ dir }}{% endif %}{% if q %}&q={{ q|url_encode }}{% endif %}">‹</a>
+        </li>
+
+        {% for p in pages %}
+            {% if p == '...' %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% else %}
+            <li class="page-item{% if p == page %} active{% endif %}">
+                <a class="page-link" href="?page={{ p }}{% if sort %}&sort={{ sort }}&dir={{ dir }}{% endif %}{% if q %}&q={{ q|url_encode }}{% endif %}">{{ p }}</a>
+            </li>
+            {% endif %}
+        {% endfor %}
+
+        <li class="page-item{% if page == total_pages %} disabled{% endif %}">
+            <a class="page-link" href="?page={{ page + 1 }}{% if sort %}&sort={{ sort }}&dir={{ dir }}{% endif %}{% if q %}&q={{ q|url_encode }}{% endif %}">›</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
+
+{% endblock %}

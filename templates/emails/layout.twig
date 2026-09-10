@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block subject %}{% endblock %}</title>
+    <style>
+        body      { margin: 0; padding: 0; background: #f4f4f4; font-family: Arial, sans-serif; color: #333; }
+        .wrap     { max-width: 600px; margin: 40px auto; background: #fff; border-radius: 6px; overflow: hidden; }
+        .header   { background: #0d6efd; padding: 24px 32px; }
+        .header a { color: #fff; font-size: 18px; font-weight: bold; text-decoration: none; }
+        .body     { padding: 32px; line-height: 1.6; }
+        .body h2  { margin-top: 0; }
+        .btn      { display: inline-block; margin: 16px 0; padding: 12px 28px; background: #0d6efd; color: #fff !important; text-decoration: none; border-radius: 4px; font-size: 15px; }
+        .link     { font-size: 12px; color: #666; word-break: break-all; }
+        .footer   { padding: 16px 32px; background: #f4f4f4; font-size: 12px; color: #999; text-align: center; }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="header">
+        <a href="#">{{ app_name }}</a>
+    </div>
+    <div class="body">
+        {% block content %}{% endblock %}
+    </div>
+    <div class="footer">
+        &copy; {{ "now"|date("Y") }} {{ app_name }}. This email was sent automatically — please do not reply.
+    </div>
+</div>
+{% if tracking_pixel_url is defined and tracking_pixel_url %}
+<img src="{{ tracking_pixel_url }}" width="1" height="1" alt="" style="border:0;display:block;width:1px;height:1px">
+{% endif %}
+</body>
+</html>

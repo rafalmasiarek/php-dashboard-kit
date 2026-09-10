@@ -1,0 +1,97 @@
+{% extends "layout.twig" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6">
+        <h1 class="mb-4">Settings</h1>
+
+        {% if user_fields is not empty %}
+        <div class="card mb-4">
+            <div class="card-header">Profile</div>
+            <div class="card-body">
+                <form method="POST" action="{{ dash }}/settings/profile">
+                    {{ csrf_field('settings-profile') }}
+                    {% for name, field in user_fields %}
+                    <div class="mb-3">
+                        <label class="form-label" for="pf_{{ name }}">
+                            {{ field.label }}{% if field.required %} <span class="text-danger">*</span>{% endif %}
+                        </label>
+                        {% if field.type == 'textarea' %}
+                        <textarea id="pf_{{ name }}" name="{{ name }}" class="form-control"
+                                  {% if field.required %}required{% endif %}
+                                  rows="3">{{ profile_values[name] ?? '' }}</textarea>
+                        {% elseif field.type == 'select' %}
+                        <select id="pf_{{ name }}" name="{{ name }}" class="form-select"
+                                {% if field.required %}required{% endif %}>
+                            {% if not field.required %}<option value="">—</option>{% endif %}
+                            {% for val, label in field.options %}
+                            <option value="{{ val }}" {% if (profile_values[name] ?? '') == val %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                        {% else %}
+                        <input type="{{ field.type }}" id="pf_{{ name }}" name="{{ name }}" class="form-control"
+                               {% if field.max is defined and field.type != 'date' %}maxlength="{{ field.max }}"{% endif %}
+                               {% if field.required %}required{% endif %}
+                               value="{{ profile_values[name] ?? '' }}">
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                    <button type="submit" class="btn btn-primary">Save profile</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="card mb-4">
+            <div class="card-header">Email address</div>
+            <div class="card-body">
+                <form method="POST" action="{{ dash }}/settings/email">
+                    {{ csrf_field('settings-email') }}
+                    <div class="mb-3">
+                        <label class="form-label">Current address</label>
+                        <input type="email" class="form-control" value="{{ user.getEmail() }}" disabled>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="email">New address</label>
+                        <input type="email" class="form-control" id="email" name="email" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Update email</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">Change password</div>
+            <div class="card-body">
+                <form method="POST" action="{{ dash }}/settings/password">
+                    {{ csrf_field('settings-password') }}
+                    <div class="mb-3">
+                        <label class="form-label" for="current_password">Current password</label>
+                        <input type="password" class="form-control" id="current_password" name="current_password" required autocomplete="current-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="new_password">New password</label>
+                        <input type="password" class="form-control" id="new_password" name="new_password" required autocomplete="new-password">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="confirm_password">Confirm new password</label>
+                        <input type="password" class="form-control" id="confirm_password" name="confirm_password" required autocomplete="new-password">
+                    </div>
+                    <button type="submit" class="btn btn-primary">Change password</button>
+                </form>
+            </div>
+        </div>
+
+        {% if settings_sections is not empty %}
+        {% for section in settings_sections %}
+        <div class="card mt-4">
+            <div class="card-body d-flex justify-content-between align-items-center">
+                <span class="fw-semibold">{{ section.title }}</span>
+                <a href="{{ section.path }}" class="btn btn-outline-secondary btn-sm">Manage</a>
+            </div>
+        </div>
+        {% endfor %}
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,37 @@
+{% extends "layout.twig" %}
+
+{% block content %}
+<h1 class="mb-4">Admin</h1>
+
+<div class="row g-3">
+    <div class="col-sm-6 col-md-4">
+        <a href="{{ admin_panel }}/users" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="fs-2 mb-2">👥</div>
+                    <h5 class="card-title mb-1">Users</h5>
+                    <p class="card-text text-muted small">Manage accounts, roles and suspensions.</p>
+                </div>
+            </div>
+        </a>
+    </div>
+
+    {% for slug, module in admin_modules %}
+    {% set _mod_path = module.path|default('/' ~ slug) %}
+    {% set _mod_href = (admin_panel != '' and (_mod_path starts with admin_panel)) ? _mod_path : (admin_panel ~ _mod_path) %}
+    <div class="col-sm-6 col-md-4">
+        <a href="{{ _mod_href }}" class="text-decoration-none">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-body">
+                    {% if module.icon is defined %}<div class="fs-2 mb-2">{{ module.icon }}</div>{% endif %}
+                    <h5 class="card-title mb-1">{{ module.title ?? slug }}</h5>
+                    {% if module.description is defined %}
+                    <p class="card-text text-muted small">{{ module.description }}</p>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

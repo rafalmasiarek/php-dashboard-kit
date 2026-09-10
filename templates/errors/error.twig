@@ -1,0 +1,31 @@
+{% extends "layout.twig" %}
+
+{% block content %}
+{% set error_map = {
+    400: {title: 'Bad Request',         desc: 'The request could not be understood by the server.'},
+    401: {title: 'Unauthorized',        desc: 'You must be logged in to access this page.'},
+    403: {title: 'Forbidden',           desc: 'You do not have permission to access this page.'},
+    404: {title: 'Page Not Found',      desc: 'The page you are looking for does not exist.'},
+    405: {title: 'Method Not Allowed',  desc: 'This action is not allowed.'},
+    419: {title: 'Session Expired',     desc: 'Your form submission could not be verified. Go back and try again.'},
+    422: {title: 'Unprocessable',       desc: 'The submitted data could not be processed.'},
+    429: {title: 'Too Many Requests',   desc: 'You are sending requests too quickly. Please wait a moment.'},
+    500: {title: 'Server Error',        desc: 'Something went wrong on our end. Please try again later.'},
+    502: {title: 'Bad Gateway',         desc: 'The server received an invalid response from an upstream service.'},
+    503: {title: 'Service Unavailable', desc: 'The service is temporarily unavailable. Please try again later.'},
+} %}
+
+{% set info = error_map[status] ?? {title: 'An Error Occurred', desc: 'Please try again later.'} %}
+{% set desc = message is defined and message is not empty ? message : info.desc %}
+
+<div class="py-5 text-center">
+    <h1 class="display-1 text-muted">{{ status }}</h1>
+    <h2>{{ info.title }}</h2>
+    <p class="text-muted">{{ desc }}</p>
+    {% if status == 419 %}
+    <a href="javascript:history.back()" class="btn btn-primary">Go Back</a>
+    {% else %}
+    <a href="/" class="btn btn-primary">Go Home</a>
+    {% endif %}
+</div>
+{% endblock %}

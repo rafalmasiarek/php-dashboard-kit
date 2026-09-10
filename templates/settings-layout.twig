@@ -1,0 +1,23 @@
+{% extends "layout.twig" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="{% block settings_col %}col-md-8{% endblock %}">
+
+        <div class="d-flex align-items-center mb-4 gap-2 flex-wrap">
+            <a href="{{ dash }}/settings" class="text-muted text-decoration-none small">← Settings</a>
+            {% for crumb in breadcrumbs %}
+            <span class="text-muted">/</span>
+            {% if not loop.last %}
+            <a href="{{ crumb.url }}" class="text-muted text-decoration-none small">{{ crumb.label }}</a>
+            {% else %}
+            <h1 class="mb-0 fs-4">{{ crumb.label }}</h1>
+            {% endif %}
+            {% endfor %}
+        </div>
+
+        {% block settings_content %}{% endblock %}
+
+    </div>
+</div>
+{% endblock %}

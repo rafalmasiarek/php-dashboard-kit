@@ -1,0 +1,17 @@
+{% extends "layout.twig" %}
+
+{% block content %}
+<div class="d-flex align-items-center mb-4 gap-2 flex-wrap">
+    <a href="{{ admin_panel }}" class="text-muted text-decoration-none small">← Admin</a>
+    {% for crumb in breadcrumbs %}
+    <span class="text-muted">/</span>
+    {% if not loop.last %}
+    <a href="{{ crumb.url }}" class="text-muted text-decoration-none small">{{ crumb.label }}</a>
+    {% else %}
+    <h1 class="mb-0 fs-4">{{ crumb.label }}</h1>
+    {% endif %}
+    {% endfor %}
+</div>
+
+{% block admin_content %}{% endblock %}
+{% endblock %}

@@ -1,0 +1,24 @@
+name: dashboard-kit
+repo_url: https://github.com/rafalmasiarek/php-dashboard-kit
+license: MIT
+
+badges:
+  - name: Packagist Version
+    image: https://img.shields.io/packagist/v/rafalmasiarek/dashboard-kit
+    url: https://packagist.org/packages/rafalmasiarek/dashboard-kit
+  - name: Total Downloads
+    image: https://img.shields.io/packagist/dt/rafalmasiarek/dashboard-kit
+    url: https://packagist.org/packages/rafalmasiarek/dashboard-kit
+  - name: PHP
+    image: https://img.shields.io/packagist/php-v/rafalmasiarek/dashboard-kit
+    url: https://packagist.org/packages/rafalmasiarek/dashboard-kit
+  - name: License
+    image: https://img.shields.io/packagist/l/rafalmasiarek/dashboard-kit
+    url: https://packagist.org/packages/rafalmasiarek/dashboard-kit
+
+context: []
+
+authors:
+  - name: Rafał Masiarek
+    github: rafalmasiarek
+    website: https://masiarek.pl
