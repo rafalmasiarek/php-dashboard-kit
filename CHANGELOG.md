@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.1...v1.0.2) (2026-09-13)
+
+
+### Miscellaneous Chores
+
+* sync shared config ([#5](https://github.com/rafalmasiarek/php-dashboard-kit/issues/5)) ([8ace2d2](https://github.com/rafalmasiarek/php-dashboard-kit/commit/8ace2d2a0af1a56edec3618a089e30b5bbb73378))
+
 ## [1.0.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.0...v1.0.1) (2026-09-13)
 
 
