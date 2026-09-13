@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.2...v1.0.3) (2026-09-13)
+
+
+### Bug Fixes
+
+* create SQLite storage directory if missing ([6d12181](https://github.com/rafalmasiarek/php-dashboard-kit/commit/6d12181877f72f558a11036e15f8766297e95bcc))
+* create SQLite storage directory if missing ([7c1f048](https://github.com/rafalmasiarek/php-dashboard-kit/commit/7c1f048b4150775013a371cccaff1be52ffc469e))
+
 ## [1.0.2](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.1...v1.0.2) (2026-09-13)
 
 
