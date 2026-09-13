@@ -846,6 +846,10 @@ class Dashboard
 
                 foreach ((array) ($module['sqlite'] ?? []) as $entry) {
                     $path = $rootDir . '/' . \ltrim((string) ($entry['path'] ?? ''), '/');
+                    $dir  = \dirname($path);
+                    if (!\is_dir($dir) && !\mkdir($dir, 0775, true) && !\is_dir($dir)) {
+                        throw new \RuntimeException("Unable to create SQLite storage directory: {$dir}");
+                    }
                     $pdo  = new \PDO('sqlite:' . $path);
                     $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
                     (new SchemaStateManager($pdo, new ModuleSchemaBuilder(), new SchemaInspector()))
