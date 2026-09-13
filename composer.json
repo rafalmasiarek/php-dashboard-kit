@@ -10,7 +10,7 @@
     "slim/slim": "^4.12",
     "slim/psr7": "^1.5",
     "slim/twig-view": "^3.3",
-    "php-di/php-di": "^6.4",
+    "php-di/php-di": "^6.4 || ^7.0",
     "rafalmasiarek/authkit": "^2.1",
     "rafalmasiarek/csrf-token": "^1.0",
     "rafalmasiarek/real-ip-resolver": "^2.1",
