@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.4](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.3...v1.0.4) (2026-09-15)
+
+
+### Miscellaneous Chores
+
+* **deps:** require real-ip-resolver ^2.3 ([74c14e3](https://github.com/rafalmasiarek/php-dashboard-kit/commit/74c14e3cce56cf90f0f1046039e80ebb574d2692))
+* **deps:** require real-ip-resolver ^2.3 ([d1e0fa8](https://github.com/rafalmasiarek/php-dashboard-kit/commit/d1e0fa8f88bc04abafd01b528216e072b11834ac))
+
 ## [1.0.3](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.2...v1.0.3) (2026-09-13)
 
 
