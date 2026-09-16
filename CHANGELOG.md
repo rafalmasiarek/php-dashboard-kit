@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.1.0...v1.2.0) (2026-09-16)
+
+
+### Features
+
+* **csrf:** wire real client IP through generation and validation ([1f30f8c](https://github.com/rafalmasiarek/php-dashboard-kit/commit/1f30f8c6caedb591e8d9f87a6035aba03c664024))
+* **csrf:** wire real client IP through generation and validation ([5b556e6](https://github.com/rafalmasiarek/php-dashboard-kit/commit/5b556e68f9aedc727a73c3753c53a855da429420))
+
 ## [1.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.4...v1.1.0) (2026-09-16)
 
 
