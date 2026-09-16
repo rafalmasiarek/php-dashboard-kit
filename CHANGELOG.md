@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.2.0...v1.3.0) (2026-09-16)
+
+
+### Features
+
+* **csrf:** apply configured container defaults via setDefaults() ([#15](https://github.com/rafalmasiarek/php-dashboard-kit/issues/15)) ([f385014](https://github.com/rafalmasiarek/php-dashboard-kit/commit/f3850147c24c874ca39487fa8d09f12ad1d93078))
+
 ## [1.2.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.1.0...v1.2.0) (2026-09-16)
 
 
