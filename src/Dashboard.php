@@ -571,7 +571,7 @@ class Dashboard
 
         $container->set(Flash::class, static fn() => new Flash());
 
-        $container->set(Csrf::class, static function () {
+        $container->set(Csrf::class, static function (ContainerInterface $c) {
             $keyRaw = (string) (getenv('APP_KEY') ?: '');
             if ($keyRaw === '') {
                 throw new \RuntimeException(
@@ -584,7 +584,10 @@ class Dashboard
                 ? hex2bin($keyRaw)
                 : substr(str_pad($keyRaw, 32, "\0"), 0, 32);
 
-            return new Csrf($key, 900);
+            $config       = (array) $c->get('app.config');
+            $csrfDefaults = (array) ($config['security']['csrf_defaults'] ?? []);
+
+            return (new Csrf($key, 900))->setDefaults($csrfDefaults);
         });
 
         $container->set(CsrfMiddleware::class, static fn(ContainerInterface $c) =>
