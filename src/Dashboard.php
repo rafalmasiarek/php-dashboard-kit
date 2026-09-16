@@ -30,6 +30,7 @@ use Psr\Container\ContainerInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\ServerRequestInterface;
 use Psr\Log\LogLevel;
+use rafalmasiarek\DashboardKit\Hook\FlashAuthHook;
 use rafalmasiarek\DashboardKit\Hook\HookRegistry;
 use rafalmasiarek\DashboardKit\Log\AuditLog;
 use rafalmasiarek\DashboardKit\Log\LoggerFactory;
@@ -515,7 +516,7 @@ class Dashboard
             $suspendedExt = new SuspendedUserExtension();
             $activeExt    = $requireActivation ? new ActiveUserExtension() : null;
 
-            $auth = new Auth($storage, null, 3600, null, true, null, null, null, new LazyPhpSessionTransport());
+            $auth = new Auth($storage, new FlashAuthHook($c->get(Flash::class)), 3600, null, true, null, null, null, new LazyPhpSessionTransport());
             $auth->addLoginExtension($suspendedExt);
             if ($activeExt !== null) {
                 $auth->addLoginExtension($activeExt);
@@ -734,6 +735,10 @@ class Dashboard
                 });
             }
             $hooks->on('logout', static fn() => $flash->add('success', 'You have been logged out.'));
+            $hooks->on('login_failed', static fn() => $flash->add('danger', 'Invalid email or password.'));
+            $hooks->on('password_changed', static fn() => $flash->add('success', 'Password changed successfully.'));
+            $hooks->on('email_changed', static fn() => $flash->add('success', 'Email address updated.'));
+            $hooks->on('profile_updated', static fn() => $flash->add('success', 'Profile updated.'));
             return $hooks;
         });
 

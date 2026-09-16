@@ -11,17 +11,23 @@ namespace rafalmasiarek\DashboardKit\Hook;
  * ending up with two flashes firing simultaneously.
  *
  * Supported events and their argument signatures:
- *   register         (User $user)
- *   login            (User $user)
- *   logout           (User $user)
- *   password_changed (User $user)
- *   email_changed    (User $user, string $oldEmail)
- *   profile_updated  (User $user, array $updatedFields)
- *   user_suspended   (User $target, User $admin)
- *   user_unsuspended (User $target, User $admin)
- *   role_changed     (User $target, string $oldRole, string $newRole, User $admin)
- *   user_updated     (User $target, string[] $changedFields, User $admin)
- *   user_deleted     (User $target, User $admin)
+ *   register                  (User $user)
+ *   register_failed           (string $email, string $message)
+ *   login                     (User $user)
+ *   login_failed              (string $email)
+ *   logout                    (User $user)
+ *   password_reset_requested  (string $email)
+ *   password_reset_completed  (User $user)
+ *   password_changed          (User $user)
+ *   email_changed             (User $user, string $oldEmail)
+ *   profile_updated           (User $user, array $updatedFields)
+ *   user_created              (User $target, User $admin)
+ *   user_suspended            (User $target, User $admin)
+ *   user_unsuspended          (User $target, User $admin)
+ *   user_updated              (User $target, string[] $changedFields, User $admin)
+ *   user_deleted              (User $target, User $admin)
+ *   mail_sent                 (MailMessage $message)
+ *   mail_failed               (MailMessage $message, \Throwable $e)
  *
  * @package rafalmasiarek\DashboardKit\Hook
  */
