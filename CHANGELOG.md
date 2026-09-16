@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.4...v1.1.0) (2026-09-16)
+
+
+### Features
+
+* flash messages for login_failed, password/email/profile updates, and inactivity logout ([7cde362](https://github.com/rafalmasiarek/php-dashboard-kit/commit/7cde362bcb3a4d2749d2d32767414a79c46262a0))
+* flash messages for login_failed, password/email/profile updates, and inactivity logout ([00542bf](https://github.com/rafalmasiarek/php-dashboard-kit/commit/00542bfcaa0e2c940d9fb51498db1e9a5ee1cbf8))
+
+
+### Miscellaneous Chores
+
+* **deps:** pin authkit minimum to 2.1.2 ([90b1ed9](https://github.com/rafalmasiarek/php-dashboard-kit/commit/90b1ed91d40f5e44311d1edd37cd71ec28f5a841))
+
 ## [1.0.4](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.0.3...v1.0.4) (2026-09-15)
 
 
