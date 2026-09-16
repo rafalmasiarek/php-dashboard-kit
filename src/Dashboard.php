@@ -588,7 +588,7 @@ class Dashboard
         });
 
         $container->set(CsrfMiddleware::class, static fn(ContainerInterface $c) =>
-            new CsrfMiddleware($c->get(Csrf::class))
+            new CsrfMiddleware($c->get(Csrf::class), $c->get(RealIpResolver::class))
         );
 
         $container->set(ModuleRegistry::class, static function () use ($pkgModulesDir, $modulesDir, $container) {
@@ -682,7 +682,7 @@ class Dashboard
 
             $twig = new Twig($loader, ['cache' => false]);
             $env  = $twig->getEnvironment();
-            $env->addExtension(new CsrfExtension($c->get(Csrf::class)));
+            $env->addExtension(new CsrfExtension($c->get(Csrf::class), $c->get(RealIpResolver::class)));
             $env->addExtension(new DashboardExtension());
             $env->addGlobal('user_fields', $userFields);
             $env->addGlobal('app_name', $appName);

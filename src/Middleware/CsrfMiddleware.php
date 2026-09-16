@@ -7,6 +7,7 @@ use Psr\Http\Message\ServerRequestInterface;
 use Psr\Http\Server\MiddlewareInterface;
 use Psr\Http\Server\RequestHandlerInterface;
 use rafalmasiarek\Csrf\Csrf;
+use rafalmasiarek\RealIpResolver;
 use Slim\Exception\HttpException;
 
 /**
@@ -23,10 +24,15 @@ class CsrfMiddleware implements MiddlewareInterface
     private const SAFE_METHODS = ['GET', 'HEAD', 'OPTIONS'];
 
     /**
-     * @param Csrf $csrf CSRF token service.
+     * @param Csrf           $csrf      CSRF token service.
+     * @param RealIpResolver $ipResolver Resolves the real client IP behind trusted proxies
+     *                                   (e.g. Cloudflare), so bind_ip validates against the
+     *                                   actual visitor rather than an edge/proxy address.
      */
-    public function __construct(private readonly Csrf $csrf)
-    {
+    public function __construct(
+        private readonly Csrf $csrf,
+        private readonly RealIpResolver $ipResolver,
+    ) {
     }
 
     /**
@@ -52,6 +58,7 @@ class CsrfMiddleware implements MiddlewareInterface
         $body      = (array) $request->getParsedBody();
         $token     = $body['_csrf'] ?? null;
         $container = isset($body['_csrf_container']) ? (string) $body['_csrf_container'] : null;
+        $proof     = isset($body['_csrf_proof']) ? (string) $body['_csrf_proof'] : null;
 
         if ($token === null) {
             $ct = strtolower($request->getHeaderLine('Content-Type'));
@@ -60,13 +67,16 @@ class CsrfMiddleware implements MiddlewareInterface
                 if (is_array($json)) {
                     $token     = $json['_csrf'] ?? $json['csrf_token'] ?? null;
                     $container = isset($json['_csrf_container']) ? (string) $json['_csrf_container'] : $container;
+                    $proof     = isset($json['_csrf_proof']) ? (string) $json['_csrf_proof'] : $proof;
                 }
             }
         }
 
+        $ip = $this->ipResolver->getIp() ?: null;
+
         $valid = ($container !== null)
-            ? $this->csrf->validateFor($container, $token)
-            : $this->csrf->validate($token);
+            ? $this->csrf->validateFor($container, $token, $ip, null, null, $proof)
+            : $this->csrf->validate($token, $ip);
 
         if (!$valid) {
             throw new HttpException($request, 'CSRF token validation failed.', 419);
