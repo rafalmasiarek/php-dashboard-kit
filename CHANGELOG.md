@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.3.0...v1.4.0) (2026-09-17)
+
+
+### Features
+
+* add DNS resolver interface and DNS-aware HTTP client ([f5a004e](https://github.com/rafalmasiarek/php-dashboard-kit/commit/f5a004e9d937fce7979bb392a3daae102d49634b))
+* **dns,http:** add pluggable DNS resolver interface and a DNS-aware curl client ([5df0438](https://github.com/rafalmasiarek/php-dashboard-kit/commit/5df0438371c8430a0fb81b98738fdd1c2af030ed))
+
 ## [1.3.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.2.0...v1.3.0) (2026-09-16)
 
 
