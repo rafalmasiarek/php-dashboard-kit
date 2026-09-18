@@ -1,5 +1,16 @@
 # Changelog
 
+## [2.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.4.0...v2.0.0) (2026-09-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* **dns:** DnsResolverInterface adds resolveAAAA() and resolve(); existing implementers must add both methods. DnsAnswer's constructor gains a third parameter (authenticatedData), which is backward compatible for positional construction but changes the class shape.
+
+### Features
+
+* **dns:** add IPv6 resolution and DNSSEC AD-bit reporting ([#19](https://github.com/rafalmasiarek/php-dashboard-kit/issues/19)) ([05792e3](https://github.com/rafalmasiarek/php-dashboard-kit/commit/05792e3971acc2ed57b1300e5788799d2eb46760))
+
 ## [1.4.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.3.0...v1.4.0) (2026-09-17)
 
 
