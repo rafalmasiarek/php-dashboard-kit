@@ -222,7 +222,7 @@ final class CurlHttpClient implements HttpClientInterface
      * resolution in that case.
      *
      * @param  string $url
-     * @return string|null "host:port:ip", suitable for CURLOPT_RESOLVE.
+     * @return string|null "host:port:ip" (IPv6 addresses bracketed), suitable for CURLOPT_RESOLVE.
      */
     private function buildResolveOption(string $url): ?string
     {
@@ -236,7 +236,7 @@ final class CurlHttpClient implements HttpClientInterface
         $port = $parts['port'] ?? ($scheme === 'https' ? 443 : 80);
 
         try {
-            $answer = $this->dns->resolveA($host);
+            $answer = $this->dns->resolve($host);
         } catch (DnsQueryException) {
             return null;
         }
@@ -245,6 +245,11 @@ final class CurlHttpClient implements HttpClientInterface
             return null;
         }
 
-        return "{$host}:{$port}:{$answer->records[0]}";
+        $ip = $answer->records[0];
+        if (\filter_var($ip, \FILTER_VALIDATE_IP, \FILTER_FLAG_IPV6) !== false) {
+            $ip = "[{$ip}]";
+        }
+
+        return "{$host}:{$port}:{$ip}";
     }
 }
