@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.0.0...v2.1.0) (2026-09-19)
+
+
+### Features
+
+* **log:** redact registered secrets from every log channel ([2e6706b](https://github.com/rafalmasiarek/php-dashboard-kit/commit/2e6706b1f62ec1f1057a61f520e6f0e9d8982dad))
+
 ## [2.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v1.4.0...v2.0.0) (2026-09-18)
 
 
