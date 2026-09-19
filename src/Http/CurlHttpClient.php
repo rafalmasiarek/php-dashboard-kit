@@ -46,9 +46,11 @@ final class CurlHttpClient implements HttpClientInterface
 
         $ch = \curl_init();
 
+        $method = \strtoupper($method);
+
         \curl_setopt_array($ch, [
             \CURLOPT_URL            => $url,
-            \CURLOPT_CUSTOMREQUEST  => \strtoupper($method),
+            \CURLOPT_CUSTOMREQUEST  => $method,
             \CURLOPT_RETURNTRANSFER => true,
             \CURLOPT_FOLLOWLOCATION => true,
             \CURLOPT_MAXREDIRS      => 20,
@@ -56,6 +58,13 @@ final class CurlHttpClient implements HttpClientInterface
             \CURLOPT_SSL_VERIFYPEER => (bool) ($options['verify_peer'] ?? true),
             \CURLOPT_HTTPHEADER     => $this->formatHeaders($headers),
         ]);
+
+        if ($method === 'HEAD') {
+            // Without this, curl still expects a body sized per Content-Length (announcing
+            // what a GET would return) and reports a transport error when the server
+            // correctly sends none — even though the headers we actually want arrive fine.
+            \curl_setopt($ch, \CURLOPT_NOBODY, true);
+        }
 
         if ($requestBody !== null) {
             \curl_setopt($ch, \CURLOPT_POSTFIELDS, $requestBody);
