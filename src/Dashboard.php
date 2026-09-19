@@ -36,6 +36,7 @@ use rafalmasiarek\DashboardKit\Log\AuditLog;
 use rafalmasiarek\DashboardKit\Log\LoggerFactory;
 use rafalmasiarek\DashboardKit\Log\RequestHeadersProcessor;
 use rafalmasiarek\DashboardKit\Log\RequestLogSanitizer;
+use rafalmasiarek\DashboardKit\Log\SecretRedactionProcessor;
 use rafalmasiarek\DashboardKit\Mail\Driver\NullDriver;
 use rafalmasiarek\DashboardKit\Mail\Driver\SmtpDriver;
 use rafalmasiarek\DashboardKit\Mail\Mailer;
@@ -441,25 +442,30 @@ class Dashboard
             $channelProcessors[$name] = new RequestHeadersProcessor($headers, $ipResolverFn);
         }
 
+        $secretRedactionProcessor = new SecretRedactionProcessor();
+
         foreach ($channels as $name => $cfg) {
             $enabled = (bool) ($cfg['enabled'] ?? true);
 
             if ($name === 'system') {
-                $container->set('logger.system', static function () use ($cfg, $enabled) {
+                $container->set('logger.system', static function () use ($cfg, $enabled, $secretRedactionProcessor) {
                     if (!$enabled) {
                         return new \Psr\Log\NullLogger();
                     }
-                    return LoggerFactory::create('system', $cfg['path'], $cfg['level'], $cfg['days']);
+                    $logger = LoggerFactory::create('system', $cfg['path'], $cfg['level'], $cfg['days']);
+                    $logger->pushProcessor($secretRedactionProcessor);
+                    return $logger;
                 });
                 continue;
             }
 
             $processor = $channelProcessors[$name];
-            $container->set('logger.' . $name, static function () use ($name, $cfg, $processor, $enabled) {
+            $container->set('logger.' . $name, static function () use ($name, $cfg, $processor, $enabled, $secretRedactionProcessor) {
                 if (!$enabled) {
                     return new \Psr\Log\NullLogger();
                 }
                 $logger = LoggerFactory::create($name, $cfg['path'], $cfg['level'], $cfg['days']);
+                $logger->pushProcessor($secretRedactionProcessor);
                 $logger->pushProcessor($processor);
                 return $logger;
             });
