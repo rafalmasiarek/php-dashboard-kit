@@ -1,5 +1,19 @@
 # Changelog
 
+## [2.2.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.1.0...v2.2.0) (2026-09-19)
+
+
+### Features
+
+* **http:** add centralized retry decorator for HTTP requests ([71ae5e4](https://github.com/rafalmasiarek/php-dashboard-kit/commit/71ae5e4cd951d59769370b9b685516317e62a11b))
+* resumable-download safety, centralized retry, and redirect security hardening ([c5e1221](https://github.com/rafalmasiarek/php-dashboard-kit/commit/c5e1221bcdcbeb97a562231f46d3a848b4b57cf0))
+
+
+### Bug Fixes
+
+* **http:** strip credentials on cross-origin redirects, guard against private network targets ([b35312b](https://github.com/rafalmasiarek/php-dashboard-kit/commit/b35312b3a800e48b0a91f4e5217696e03c52ae7f))
+* **http:** validate resumed downloads before appending to avoid corruption ([883d12d](https://github.com/rafalmasiarek/php-dashboard-kit/commit/883d12de80888868559d5038d68bdb62fd7afa1f))
+
 ## [2.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.0.0...v2.1.0) (2026-09-19)
 
 
