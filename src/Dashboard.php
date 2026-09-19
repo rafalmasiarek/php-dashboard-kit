@@ -866,6 +866,14 @@ class Dashboard
                     }
                     $pdo  = new \PDO('sqlite:' . $path);
                     $pdo->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+
+                    foreach ((array) ($entry['pragma'] ?? []) as $pragmaName => $pragmaValue) {
+                        $pragmaName = (string) $pragmaName;
+                        if (\preg_match('/^[a-zA-Z_]+$/', $pragmaName) === 1) {
+                            $pdo->exec("PRAGMA {$pragmaName} = {$pragmaValue}");
+                        }
+                    }
+
                     (new SchemaStateManager($pdo, new ModuleSchemaBuilder(), new SchemaInspector()))
                         ->sync([(string) $slug => ['schema' => (array) ($entry['schema'] ?? [])]]);
                     $key = (string) ($entry['key'] ?? $slug . '.sqlite');
