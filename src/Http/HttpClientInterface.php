@@ -27,6 +27,19 @@ interface HttpClientInterface
      *  - timeout     (float)               : total request timeout in seconds
      *  - auth_basic  (string|array{0:string,1:string}) : HTTP Basic Auth, as "user:pass" or [user, pass]
      *  - verify_peer (bool)                : verify the server's TLS certificate (default: true)
+     *  - follow_redirects (bool)           : follow HTTP redirects (default: true). Set false to inspect
+     *                                         a redirect response itself (status + Location header)
+     *                                         instead of the final destination. Implementations that
+     *                                         follow redirects themselves (rather than delegating to the
+     *                                         underlying transport) must strip Authorization/Cookie/
+     *                                         Proxy-Authorization headers and auth_basic when a redirect
+     *                                         hop crosses origins (scheme, host, or port differs).
+     *  - block_private_network (bool)      : refuse to connect when the target host resolves to a
+     *                                         private or reserved-range address (default: false),
+     *                                         re-checked on every redirect hop. Intended for requests
+     *                                         to externally-supplied URLs (e.g. a user-submitted link a
+     *                                         background job fetches) as an SSRF guard — leave unset for
+     *                                         requests to hardcoded, trusted endpoints.
      *  - local_cert  (string)               : client certificate path, for mTLS
      *  - local_pk    (string)               : client private key path, when separate from local_cert
      *  - passphrase  (string)               : client private key passphrase
