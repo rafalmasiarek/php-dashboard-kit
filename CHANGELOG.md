@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.2.0...v2.3.0) (2026-09-19)
+
+
+### Features
+
+* **schema:** support PRAGMA statements for module sqlite config ([313dd88](https://github.com/rafalmasiarek/php-dashboard-kit/commit/313dd88ae640ed29cf2529685b1473123123ba8b))
+* support PRAGMA statements for module sqlite config ([4d05283](https://github.com/rafalmasiarek/php-dashboard-kit/commit/4d05283b23a32194916525726e3e68cd79392a26))
+
 ## [2.2.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.1.0...v2.2.0) (2026-09-19)
 
 
