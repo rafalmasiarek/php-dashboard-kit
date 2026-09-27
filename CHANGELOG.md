@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.4.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.3.0...v2.4.0) (2026-09-27)
+
+
+### Features
+
+* **http:** expose curl transport timing/target via HttpResponse ([#28](https://github.com/rafalmasiarek/php-dashboard-kit/issues/28)) ([384cacc](https://github.com/rafalmasiarek/php-dashboard-kit/commit/384caccd1072d6222c9c93e6eba62f90b29afe1b))
+
 ## [2.3.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.2.0...v2.3.0) (2026-09-19)
 
 
