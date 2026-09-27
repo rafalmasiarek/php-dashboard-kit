@@ -190,7 +190,8 @@ final class CurlHttpClient implements HttpClientInterface
         $responseBody = \curl_exec($ch);
         $errno = \curl_errno($ch);
         $error = $errno !== 0 ? \curl_error($ch) : null;
-        $statusCode = $errno === 0 ? (int) \curl_getinfo($ch, \CURLINFO_RESPONSE_CODE) : 0;
+        $info = \curl_getinfo($ch);
+        $statusCode = $errno === 0 ? (int) ($info['http_code'] ?? 0) : 0;
 
         \curl_close($ch);
 
@@ -199,6 +200,7 @@ final class CurlHttpClient implements HttpClientInterface
             headers: $responseHeaders,
             body: \is_string($responseBody) ? $responseBody : '',
             error: $error,
+            debug: HttpTransportDebug::fromCurlInfo($info),
         );
     }
 

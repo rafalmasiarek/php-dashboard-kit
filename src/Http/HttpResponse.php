@@ -17,12 +17,16 @@ final readonly class HttpResponse
      *                                                name preserved (e.g. multiple Set-Cookie headers).
      * @param string                     $body       Response body.
      * @param string|null                $error      curl error message, when the request failed at the transport level.
+     * @param HttpTransportDebug|null    $debug      Timing/target info from curl_getinfo(), for diagnosing
+     *                                                connectivity failures. Not populated by every
+     *                                                HttpClientInterface implementation.
      */
     public function __construct(
         public int $statusCode,
         public array $headers,
         public string $body,
         public ?string $error = null,
+        public ?HttpTransportDebug $debug = null,
     ) {
     }
 
