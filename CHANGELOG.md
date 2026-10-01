@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.4.0...v3.0.0) (2026-10-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **http:** HttpClientInterface::request() returns HttpResponseInterface instead of the concrete HttpResponse class. Property access ($response->statusCode, ->error, ->body) no longer works — use the equivalent methods instead (getStatusCode(), getError(), getContent()). HttpResponse still exists, as a simple eager implementation of the new interface (useful for stubs/tests/synthetic responses), but CurlHttpClient no longer returns it for a real request — RetryStrategyInterface and ChunkedFileDownloader (and any other code type-hinting the old concrete class) must be updated to accept HttpResponseInterface.
+
+### Features
+
+* **http:** lazy, concurrent HTTP client, SSE, caching, throttling ([#30](https://github.com/rafalmasiarek/php-dashboard-kit/issues/30)) ([823868f](https://github.com/rafalmasiarek/php-dashboard-kit/commit/823868fa65175223aeae328282fedfee937e04b1))
+
 ## [2.4.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.3.0...v2.4.0) (2026-09-27)
 
 
