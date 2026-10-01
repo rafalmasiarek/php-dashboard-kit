@@ -12,14 +12,22 @@ use rafalmasiarek\DashboardKit\Dns\DnsResolverInterface;
  * injected DnsResolverInterface and pins the result with CURLOPT_RESOLVE,
  * instead of letting curl perform its own DNS resolution.
  *
+ * request() returns a lazy CurlResponse immediately — see HttpResponseInterface
+ * for what that means. All responses produced by one CurlHttpClient instance
+ * share one curl_multi handle, created on first use; CurlResponse drives it
+ * (via pumpUntilDone()) when its data is first accessed, which is also the
+ * point at which any other still-pending responses from this same client get
+ * to make progress.
+ *
  * DNS resolution failure never fails the request outright — it just falls
  * back to curl's own resolution, since a resolver hiccup (e.g. a custom
  * resolver being temporarily unreachable) should not break an otherwise
  * working HTTP call. The one exception is 'block_private_network' (see
- * request()) — there, a resolution that can't be confirmed safe is treated
- * as unsafe rather than silently falling through to an unchecked connection.
+ * buildHandle()) — there, a resolution that can't be confirmed safe is
+ * treated as unsafe rather than silently falling through to an unchecked
+ * connection.
  *
- * Redirects are followed by this class itself, one hop at a time, rather
+ * Redirects are followed by CurlResponse itself, one hop at a time, rather
  * than via CURLOPT_FOLLOWLOCATION — this is what lets it strip credential
  * headers when a redirect crosses origins, and re-run the private-network
  * check (and DNS pinning) on every hop instead of only the first one.
@@ -32,13 +40,19 @@ final class CurlHttpClient implements HttpClientInterface
     private const DEFAULT_TIMEOUT = 10.0;
 
     /** @var int Maximum number of redirect hops followed before giving up and returning the last redirect response as-is. */
-    private const MAX_REDIRECTS = 20;
+    public const MAX_REDIRECTS = 20;
 
     /** @var list<string> Header names (lowercase) never forwarded to a different origin on redirect. */
     private const CREDENTIAL_HEADERS = ['authorization', 'proxy-authorization', 'cookie'];
 
+    /** @var \CurlMultiHandle|null Lazily created; shared by every CurlResponse this client produces. */
+    private ?\CurlMultiHandle $multi = null;
+
+    /** @var array<int, CurlResponse> In-flight responses, keyed by spl_object_id() of their current curl handle. */
+    private array $pending = [];
+
     /**
-     * @param DnsResolverInterface $dns Resolver used to pin the request's target IP.
+     * @param DnsResolverInterface $dns Resolver used to pin each request's target IP.
      */
     public function __construct(
         private readonly DnsResolverInterface $dns,
@@ -48,17 +62,22 @@ final class CurlHttpClient implements HttpClientInterface
     /**
      * @param  string               $method  HTTP method (GET, POST, ...).
      * @param  string               $url     Absolute URL.
-     * @param  array<string, mixed> $options See HttpClientInterface::request(). Two extra keys
-     *                                        beyond the base interface: 'follow_redirects' (bool,
-     *                                        default true) and 'block_private_network' (bool,
-     *                                        default false) — refuse to connect when the target
-     *                                        resolves to a private/reserved-range address, checked
-     *                                        again on every redirect hop. Intended for requests to
-     *                                        externally-supplied URLs (e.g. user-submitted links a
-     *                                        cron job probes), not for the app-wide default client.
-     * @return HttpResponse
+     * @param  array<string, mixed> $options See HttpClientInterface::request(). Extra keys beyond the
+     *                                        base interface: 'follow_redirects' (bool, default true),
+     *                                        'block_private_network' (bool, default false) — refuse to
+     *                                        connect when the target resolves to a private/reserved-range
+     *                                        address, checked again on every redirect hop; intended for
+     *                                        requests to externally-supplied URLs, not the app-wide
+     *                                        default client — 'max_connect_duration' (float, seconds) —
+     *                                        limits only the connect phase (DNS+TCP+TLS), separately from
+     *                                        'timeout' which bounds the whole request; and 'on_progress'
+     *                                        (callable(int $dlNow, int $dlSize, array $info): void) —
+     *                                        called periodically as the transfer progresses (at least once
+     *                                        per second while data is flowing); a thrown exception inside
+     *                                        it aborts the transfer and is reported via getError().
+     * @return HttpResponseInterface
      */
-    public function request(string $method, string $url, array $options = []): HttpResponse
+    public function request(string $method, string $url, array $options = []): HttpResponseInterface
     {
         $url = $this->applyQuery($url, (array) ($options['query'] ?? []));
         unset($options['query']);
@@ -66,57 +85,24 @@ final class CurlHttpClient implements HttpClientInterface
         $followRedirects = (bool) ($options['follow_redirects'] ?? true);
         unset($options['follow_redirects']);
 
-        $currentMethod = \strtoupper($method);
-        $currentUrl = $url;
-        $currentOptions = $options;
-
-        for ($redirectCount = 0; ; $redirectCount++) {
-            $response = $this->doRequest($currentMethod, $currentUrl, $currentOptions);
-
-            if (!$followRedirects || $redirectCount >= self::MAX_REDIRECTS) {
-                return $response;
-            }
-
-            if (!\in_array($response->statusCode, [301, 302, 303, 307, 308], true)) {
-                return $response;
-            }
-
-            $location = $response->getHeader('Location');
-            if ($location === null || $location === '') {
-                return $response;
-            }
-
-            $nextUrl = $this->resolveRedirectUrl($currentUrl, $location);
-
-            if ($this->isCrossOrigin($currentUrl, $nextUrl)) {
-                $currentOptions['headers'] = $this->stripCredentialHeaders((array) ($currentOptions['headers'] ?? []));
-                unset($currentOptions['auth_basic']);
-            }
-
-            // 301/302/303 historically downgrade a non-GET/HEAD request to GET and drop
-            // its body (matches curl's own default FOLLOWLOCATION behavior, and browsers).
-            // 307/308 preserve method and body as-is.
-            if (
-                \in_array($response->statusCode, [301, 302, 303], true)
-                && !\in_array($currentMethod, ['GET', 'HEAD'], true)
-            ) {
-                $currentMethod = 'GET';
-                unset($currentOptions['body'], $currentOptions['json']);
-            }
-
-            $currentUrl = $nextUrl;
-        }
+        return new CurlResponse($this, \strtoupper($method), $url, $options, $followRedirects);
     }
 
     /**
-     * Executes a single HTTP request (no redirect following).
+     * Builds one hop's curl handle, wiring its header/body callbacks to write
+     * directly into $forResponse. Returns null (after marking $forResponse done
+     * via _completeBlocked()) when block_private_network refuses the target —
+     * there's no handle to register in that case.
+     *
+     * @internal Called only by CurlResponse (initial request and each redirect hop).
      *
      * @param  string               $method
      * @param  string               $url
      * @param  array<string, mixed> $options
-     * @return HttpResponse
+     * @param  CurlResponse         $forResponse
+     * @return \CurlHandle|null
      */
-    private function doRequest(string $method, string $url, array $options): HttpResponse
+    public function buildHandle(string $method, string $url, array $options, CurlResponse $forResponse): ?\CurlHandle
     {
         [$requestBody, $headers] = $this->resolveBody($options);
 
@@ -125,11 +111,14 @@ final class CurlHttpClient implements HttpClientInterface
         \curl_setopt_array($ch, [
             \CURLOPT_URL            => $url,
             \CURLOPT_CUSTOMREQUEST  => $method,
-            \CURLOPT_RETURNTRANSFER => true,
             \CURLOPT_TIMEOUT        => (float) ($options['timeout'] ?? self::DEFAULT_TIMEOUT),
             \CURLOPT_SSL_VERIFYPEER => (bool) ($options['verify_peer'] ?? true),
             \CURLOPT_HTTPHEADER     => $this->formatHeaders($headers),
         ]);
+
+        if (isset($options['max_connect_duration'])) {
+            \curl_setopt($ch, \CURLOPT_CONNECTTIMEOUT_MS, (int) ((float) $options['max_connect_duration'] * 1000));
+        }
 
         if ($method === 'HEAD') {
             // Without this, curl still expects a body sized per Content-Length a GET
@@ -157,12 +146,8 @@ final class CurlHttpClient implements HttpClientInterface
             $ipToCheck = $resolvedIp ?? $host;
             if ($this->isPrivateOrReservedIp($ipToCheck)) {
                 \curl_close($ch);
-                return new HttpResponse(
-                    statusCode: 0,
-                    headers: [],
-                    body: '',
-                    error: "Blocked request to \"{$host}\": target resolves to a private or reserved network address.",
-                );
+                $forResponse->_completeBlocked($host);
+                return null;
             }
         }
 
@@ -173,35 +158,128 @@ final class CurlHttpClient implements HttpClientInterface
             }
         }
 
-        $responseHeaders = [];
-        \curl_setopt($ch, \CURLOPT_HEADERFUNCTION, static function ($ch, string $line) use (&$responseHeaders): int {
-            if (\str_starts_with($line, 'HTTP/')) {
-                $responseHeaders = [];
-                return \strlen($line);
-            }
-
-            $parts = \explode(':', $line, 2);
-            if (\count($parts) === 2) {
-                $responseHeaders[\strtolower(\trim($parts[0]))][] = \trim($parts[1]);
-            }
+        \curl_setopt($ch, \CURLOPT_HEADERFUNCTION, static function ($ch, string $line) use ($forResponse): int {
+            $forResponse->_onHeaderLine($line);
             return \strlen($line);
         });
 
-        $responseBody = \curl_exec($ch);
-        $errno = \curl_errno($ch);
-        $error = $errno !== 0 ? \curl_error($ch) : null;
-        $info = \curl_getinfo($ch);
-        $statusCode = $errno === 0 ? (int) ($info['http_code'] ?? 0) : 0;
+        \curl_setopt($ch, \CURLOPT_WRITEFUNCTION, static function ($ch, string $chunk) use ($forResponse): int {
+            $forResponse->_onBodyChunk($chunk);
+            return \strlen($chunk);
+        });
+
+        if (isset($options['on_progress']) && \is_callable($options['on_progress'])) {
+            $onProgress = $options['on_progress'];
+            \curl_setopt($ch, \CURLOPT_NOPROGRESS, false);
+            \curl_setopt($ch, \CURLOPT_XFERINFOFUNCTION, static function ($ch, int $dlTotal, int $dlNow, int $ulTotal, int $ulNow) use ($onProgress): int {
+                try {
+                    $onProgress($dlNow, $dlTotal > 0 ? $dlTotal : -1, \curl_getinfo($ch));
+                } catch (\Throwable) {
+                    return 1; // non-zero aborts the transfer; surfaced via getError() as a CURLE_ABORTED_BY_CALLBACK message.
+                }
+                return 0;
+            });
+        }
+
+        return $ch;
+    }
+
+    /**
+     * @internal Called only by CurlResponse, to add a freshly built handle to this
+     * client's shared curl_multi handle.
+     */
+    public function registerHandle(\CurlHandle $handle, CurlResponse $response): void
+    {
+        $this->pending[\spl_object_id($handle)] = $response;
+        \curl_multi_add_handle($this->multi(), $handle);
+    }
+
+    /**
+     * @internal Called only by CurlResponse::cancel(), to remove a handle before
+     * it has finished.
+     */
+    public function forget(\CurlHandle $handle): void
+    {
+        $id = \spl_object_id($handle);
+        if (isset($this->pending[$id])) {
+            \curl_multi_remove_handle($this->multi(), $handle);
+            unset($this->pending[$id]);
+        }
+    }
+
+    /**
+     * Drives the shared curl_multi handle until $target's current hop finishes.
+     * Every other response's handle still pending on this client advances in the
+     * same loop — that's the actual concurrency: whichever of them curl reports
+     * done gets finalized immediately, whether or not anyone has asked for its
+     * result yet, and the loop only stops once $target specifically is resolved.
+     *
+     * @internal Called only by CurlResponse::ensureComplete().
+     */
+    public function pumpUntilDone(CurlResponse $target): void
+    {
+        $targetHandle = $target->_handle();
+        if ($targetHandle === null) {
+            return;
+        }
+
+        $targetId = \spl_object_id($targetHandle);
+        if (!isset($this->pending[$targetId])) {
+            return;
+        }
+
+        $multi = $this->multi();
+
+        do {
+            $status = \curl_multi_exec($multi, $running);
+
+            while (($info = \curl_multi_info_read($multi)) !== false) {
+                $this->finishOne($multi, $info);
+            }
+
+            if (!isset($this->pending[$targetId])) {
+                return;
+            }
+
+            if ($running > 0) {
+                \curl_multi_select($multi, 1.0);
+            }
+        } while ($running > 0 && $status === \CURLM_OK);
+    }
+
+    /**
+     * @param \CurlMultiHandle           $multi
+     * @param array{msg: int, result: int, handle: \CurlHandle} $info One entry from curl_multi_info_read().
+     */
+    private function finishOne(\CurlMultiHandle $multi, array $info): void
+    {
+        $ch = $info['handle'];
+        $id = \spl_object_id($ch);
+        $response = $this->pending[$id] ?? null;
+        unset($this->pending[$id]);
+        \curl_multi_remove_handle($multi, $ch);
+
+        if ($response === null) {
+            \curl_close($ch);
+            return;
+        }
+
+        $errno = (int) $info['result'];
+        $error = $errno !== 0 ? \curl_strerror($errno) : null;
+        $curlInfo = \curl_getinfo($ch);
+        $statusCode = $errno === 0 ? (int) ($curlInfo['http_code'] ?? 0) : 0;
 
         \curl_close($ch);
 
-        return new HttpResponse(
-            statusCode: $statusCode,
-            headers: $responseHeaders,
-            body: \is_string($responseBody) ? $responseBody : '',
-            error: $error,
-            debug: HttpTransportDebug::fromCurlInfo($info),
-        );
+        $response->_hopFinished($statusCode, $error, $curlInfo);
+    }
+
+    /**
+     * @return \CurlMultiHandle
+     */
+    private function multi(): \CurlMultiHandle
+    {
+        return $this->multi ??= \curl_multi_init();
     }
 
     /**
@@ -276,10 +354,12 @@ final class CurlHttpClient implements HttpClientInterface
      * name match) — called when a redirect crosses origins, so credentials meant
      * for the original host are never sent to wherever it redirected to.
      *
+     * @internal Called only by CurlResponse on a cross-origin redirect.
+     *
      * @param  array<string, string|list<string>> $headers
      * @return array<string, string|list<string>>
      */
-    private function stripCredentialHeaders(array $headers): array
+    public function stripCredentialHeaders(array $headers): array
     {
         foreach ($headers as $name => $value) {
             if (\in_array(\strtolower((string) $name), self::CREDENTIAL_HEADERS, true)) {
@@ -295,11 +375,13 @@ final class CurlHttpClient implements HttpClientInterface
      * ("/path"), and relative paths (resolved against the base URL's directory,
      * with "." and ".." segments collapsed).
      *
+     * @internal Called only by CurlResponse on a redirect.
+     *
      * @param  string $baseUrl
      * @param  string $location
      * @return string
      */
-    private function resolveRedirectUrl(string $baseUrl, string $location): string
+    public function resolveRedirectUrl(string $baseUrl, string $location): string
     {
         if (\preg_match('#^[a-z][a-z0-9+.-]*://#i', $location) === 1) {
             return $location;
@@ -360,12 +442,14 @@ final class CurlHttpClient implements HttpClientInterface
     }
 
     /**
+     * @internal Called only by CurlResponse on a redirect.
+     *
      * @param  string $urlA
      * @param  string $urlB
      * @return bool True when scheme, host, or port differ between the two URLs.
      *              Unparseable input is treated as cross-origin (fail safe).
      */
-    private function isCrossOrigin(string $urlA, string $urlB): bool
+    public function isCrossOrigin(string $urlA, string $urlB): bool
     {
         $a = \parse_url($urlA);
         $b = \parse_url($urlB);
@@ -432,8 +516,9 @@ final class CurlHttpClient implements HttpClientInterface
      * itself when it's already a literal IP, otherwise the first address the
      * configured DNS resolver returns for it. Returns null when the host is
      * absent or resolution fails — callers fall back to curl's own resolution
-     * in that case, except where 'block_private_network' is set (see request()),
-     * where a null result is treated as unsafe rather than silently allowed.
+     * in that case, except where 'block_private_network' is set (see
+     * buildHandle()), where a null result is treated as unsafe rather than
+     * silently allowed.
      *
      * @param  string|null $host
      * @return string|null

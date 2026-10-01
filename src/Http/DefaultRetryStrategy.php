@@ -39,13 +39,13 @@ final class DefaultRetryStrategy implements RetryStrategyInterface
     /**
      * @inheritDoc
      */
-    public function shouldRetry(string $method, HttpResponse $response, int $attempt): bool
+    public function shouldRetry(string $method, HttpResponseInterface $response, int $attempt): bool
     {
         if ($attempt > $this->maxRetries) {
             return false;
         }
 
-        if ($response->error !== null) {
+        if ($response->getError() !== null) {
             return true;
         }
 
@@ -53,13 +53,13 @@ final class DefaultRetryStrategy implements RetryStrategyInterface
             return false;
         }
 
-        return \in_array($response->statusCode, self::RETRYABLE_STATUS_CODES, true);
+        return \in_array($response->getStatusCode(), self::RETRYABLE_STATUS_CODES, true);
     }
 
     /**
      * @inheritDoc
      */
-    public function getDelayMilliseconds(HttpResponse $response, int $attempt): int
+    public function getDelayMilliseconds(HttpResponseInterface $response, int $attempt): int
     {
         $retryAfterSec = $this->parseRetryAfter($response->getHeaderLine('Retry-After'));
         if ($retryAfterSec !== null) {

@@ -129,7 +129,7 @@ final class ChunkedFileDownloader
 
                 $chunk = $this->fetchChunkWithRetry($url, $options);
 
-                if ($chunk->statusCode === 200) {
+                if ($chunk->getStatusCode() === 200) {
                     if ($offset > 0) {
                         // If-Range wasn't honored (resource changed, or the server just
                         // doesn't support conditional range requests) — the bytes we
@@ -150,13 +150,13 @@ final class ChunkedFileDownloader
                     }
 
                     $this->writeIfRange($metaPath, $chunk);
-                    if (\fwrite($handle, $chunk->body) === false) {
+                    if (\fwrite($handle, $chunk->getContent()) === false) {
                         throw new DownloadException("Write failure to \"{$partPath}\".");
                     }
                     return;
                 }
 
-                if ($chunk->statusCode === 416) {
+                if ($chunk->getStatusCode() === 416) {
                     if ($total === null) {
                         throw new DownloadException(
                             "Server rejected the range request for \"{$url}\" (416) before the total size was known."
@@ -165,9 +165,9 @@ final class ChunkedFileDownloader
                     break;
                 }
 
-                if ($chunk->statusCode !== 206) {
+                if ($chunk->getStatusCode() !== 206) {
                     throw new DownloadException(
-                        "Unexpected status {$chunk->statusCode} fetching \"{$url}\" range \"{$headers['Range']}\"."
+                        "Unexpected status {$chunk->getStatusCode()} fetching \"{$url}\" range \"{$headers['Range']}\"."
                     );
                 }
 
@@ -179,11 +179,11 @@ final class ChunkedFileDownloader
                     $ifRange = $this->writeIfRange($metaPath, $chunk);
                 }
 
-                if (\fwrite($handle, $chunk->body) === false) {
+                if (\fwrite($handle, $chunk->getContent()) === false) {
                     throw new DownloadException("Write failure to \"{$partPath}\".");
                 }
 
-                $received = \strlen($chunk->body);
+                $received = \strlen($chunk->getContent());
                 if ($received === 0) {
                     break;
                 }
@@ -202,20 +202,20 @@ final class ChunkedFileDownloader
      *
      * @param  string               $url
      * @param  array<string, mixed> $options Already carries the Range/If-Range headers for this chunk.
-     * @return HttpResponse
+     * @return HttpResponseInterface
      * @throws DownloadException When every attempt fails.
      */
-    private function fetchChunkWithRetry(string $url, array $options): HttpResponse
+    private function fetchChunkWithRetry(string $url, array $options): HttpResponseInterface
     {
         $lastError = null;
 
         for ($attempt = 1; $attempt <= $this->maxRetriesPerChunk; $attempt++) {
             $response = $this->http->request('GET', $url, $options);
-            if ($response->error === null) {
+            if ($response->getError() === null) {
                 return $response;
             }
 
-            $lastError = $response->error;
+            $lastError = $response->getError();
         }
 
         $range = (string) (((array) ($options['headers'] ?? []))['Range'] ?? '');
@@ -267,11 +267,11 @@ final class ChunkedFileDownloader
      * a resume after a crash for such a resource is never trusted, only completing
      * the current, uninterrupted process is possible.
      *
-     * @param  string       $metaPath
-     * @param  HttpResponse $response
+     * @param  string                $metaPath
+     * @param  HttpResponseInterface $response
      * @return string|null
      */
-    private function writeIfRange(string $metaPath, HttpResponse $response): ?string
+    private function writeIfRange(string $metaPath, HttpResponseInterface $response): ?string
     {
         $ifRange = $response->getHeaderLine('ETag');
         if ($ifRange === '') {
