@@ -5,11 +5,8 @@ declare(strict_types=1);
 namespace rafalmasiarek\DashboardKit\Http;
 
 /**
- * Default HttpCacheStoreInterface backend: one JSON file per cache key in a
- * given directory. No locking beyond LOCK_EX on write — fine for the
- * read-mostly, single-consumer-per-key access pattern CachingHttpClient has;
- * not meant for high-concurrency shared caches, which should implement
- * HttpCacheStoreInterface against a real cache backend instead.
+ * Default HttpCacheStoreInterface backend: one JSON file per key. LOCK_EX
+ * on write only — not meant for high-concurrency shared caches.
  *
  * @package rafalmasiarek\DashboardKit\Http
  */

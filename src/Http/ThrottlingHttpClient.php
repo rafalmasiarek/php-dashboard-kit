@@ -7,18 +7,9 @@ namespace rafalmasiarek\DashboardKit\Http;
 /**
  * Decorates an HttpClientInterface with a token-bucket rate limit.
  *
- * In-process only: the bucket lives in this instance's memory, so it limits
- * one PHP process's request rate, not a shared ceiling across multiple
- * PHP-FPM workers or servers. Symfony's ThrottlingHttpClient can share state
- * via its RateLimiter component's storage backend (Redis, etc.); this one
- * deliberately doesn't pull in that dependency — if a cross-process shared
- * limit is what's actually needed, this class isn't the right building
- * block, a storage-backed limiter in front of it is.
- *
- * request() blocks (busy-waits in short sleeps) until a token is available
- * rather than rejecting the call — there's no "429, try later" return path
- * here, since this client is for self-imposed outbound pacing (being a good
- * citizen against a third-party API's own rate limit), not for shedding load.
+ * In-process only — bounds one PHP process's rate, not a ceiling shared
+ * across workers/servers. request() blocks until a token is free; no
+ * "429, try later" path, since this is for self-imposed outbound pacing.
  *
  * @package rafalmasiarek\DashboardKit\Http
  */

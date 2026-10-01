@@ -5,23 +5,12 @@ declare(strict_types=1);
 namespace rafalmasiarek\DashboardKit\Http;
 
 /**
- * Lazy HTTP response contract, modeled after Symfony HttpClient's ResponseInterface.
+ * Lazy HTTP response. request() returns one immediately; the first accessor
+ * call below drives the transfer to completion. Firing several request()
+ * calls before reading any response runs them concurrently.
  *
- * request() returns one of these immediately, before any data has been exchanged
- * with the server. Calling any accessor below drives the transfer (and any
- * redirects) to completion on first access. Firing several request() calls
- * before reading any of their responses lets the underlying client process them
- * concurrently; reading one immediately after request() makes that one call
- * behave exactly like the old synchronous client did.
- *
- * Unlike Symfony's version, headers and body are not separately awaitable —
- * there is no header-only wait, and no chunked streaming. The first accessor
- * call resolves the whole response in one go. Concurrency across multiple
- * in-flight responses is the goal here, not fine-grained progressive streaming.
- *
- * Transport failures are reported via getError(), not exceptions — matching
- * this library's existing error-as-value convention (RetryStrategyInterface,
- * ChunkedFileDownloader, etc. all branch on getStatusCode()/getError()).
+ * No header-only wait, no chunked streaming — one accessor call resolves
+ * everything. Transport failures are reported via getError(), not exceptions.
  *
  * @package rafalmasiarek\DashboardKit\Http
  */

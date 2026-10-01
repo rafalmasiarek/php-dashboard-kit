@@ -9,14 +9,10 @@ use rafalmasiarek\DashboardKit\Dns\DnsResolverInterface;
 
 /**
  * Consumes a "text/event-stream" (Server-Sent Events) endpoint, invoking a
- * callback for each parsed frame as it arrives.
- *
- * This is deliberately a separate, callback-based API rather than an extension
- * of HttpClientInterface/HttpResponseInterface: an SSE connection is long-lived
- * and delivered incrementally, which the rest of this package's lazy-but-whole
- * response model (CurlResponse: first access resolves everything in one go)
- * isn't built for. connect() blocks for the lifetime of the connection — until
- * the server closes it, a transport error occurs, or $onEvent returns false.
+ * callback per parsed frame. Separate, callback-based API — not built on
+ * HttpClientInterface, since a stream delivers incrementally and CurlResponse
+ * only resolves whole responses. connect() blocks until the server closes,
+ * a transport error occurs, or $onEvent returns false.
  *
  * @package rafalmasiarek\DashboardKit\Http
  */
@@ -32,20 +28,15 @@ final class EventSourceClient
     }
 
     /**
-     * @param  string                                   $url     Absolute URL of the event-stream endpoint.
-     * @param  callable(ServerSentEvent): (bool|void)    $onEvent Called once per parsed frame. Returning
-     *                                                             exactly `false` disconnects; any other
-     *                                                             return value (including none) keeps the
-     *                                                             connection open.
-     * @param  array<string, mixed>                      $options Supports 'headers' and 'verify_peer' from
-     *                                                             HttpClientInterface::request()'s shape,
-     *                                                             plus 'last_event_id' (string) — sent as
-     *                                                             the Last-Event-ID header, for resuming a
-     *                                                             stream after a reconnect.
-     * @return string|null The last "id:" value seen on the stream (useful for a caller-driven
-     *                      reconnect loop setting 'last_event_id' on the next connect() call),
-     *                      or null if none arrived.
-     * @throws \RuntimeException On a connection failure (DNS, TCP, TLS) before any data arrived.
+     * $options supports 'headers'/'verify_peer' (as in HttpClientInterface::request())
+     * plus 'last_event_id' (string), sent as the Last-Event-ID header for a reconnect.
+     *
+     * @param  string                                $url
+     * @param  callable(ServerSentEvent): (bool|void) $onEvent Return exactly `false` to disconnect.
+     * @param  array<string, mixed>                   $options
+     * @return string|null Last "id:" seen on the stream (feed back as 'last_event_id' on
+     *                      a reconnect), or null if none arrived.
+     * @throws \RuntimeException On a connection failure before any data arrived.
      */
     public function connect(string $url, callable $onEvent, array $options = []): ?string
     {

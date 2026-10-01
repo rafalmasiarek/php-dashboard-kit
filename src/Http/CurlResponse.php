@@ -5,17 +5,10 @@ declare(strict_types=1);
 namespace rafalmasiarek\DashboardKit\Http;
 
 /**
- * Lazy HttpResponseInterface implementation returned by CurlHttpClient.
- *
- * See HttpResponseInterface for the concurrency contract this implements.
- * Internally: CurlHttpClient owns one shared curl_multi handle per client
- * instance; every CurlResponse registers its curl handle on that shared
- * handle and returns immediately. The first accessor call on any one of
- * them drives the shared handle (via CurlHttpClient::pumpUntilDone()) until
- * that specific response's current hop is done — which, as a side effect,
- * also finishes whichever other pending responses curl happens to complete
- * along the way, so firing several requests up front genuinely runs them
- * concurrently against the network.
+ * Lazy HttpResponseInterface returned by CurlHttpClient. Registers its curl
+ * handle on the client's shared curl_multi and returns immediately; the
+ * first accessor call pumps that shared handle until this response's hop is
+ * done, finishing any other pending responses along the way too.
  *
  * @package rafalmasiarek\DashboardKit\Http
  */
@@ -187,11 +180,9 @@ final class CurlResponse implements HttpResponseInterface
     }
 
     /**
-     * @internal Called only by CurlHttpClient::pumpUntilDone() once this response's
-     * current hop has finished (handle already removed from the multi handle and closed
-     * by the caller — $info is a curl_getinfo() snapshot taken just before that).
+     * @internal Called only by CurlHttpClient::pumpUntilDone(). Handle is already closed by then.
      *
-     * @param array<string, mixed> $info
+     * @param array<string, mixed> $info curl_getinfo() snapshot taken before close.
      */
     public function _hopFinished(int $statusCode, ?string $error, array $info): void
     {

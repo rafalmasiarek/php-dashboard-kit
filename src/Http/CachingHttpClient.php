@@ -5,19 +5,13 @@ declare(strict_types=1);
 namespace rafalmasiarek\DashboardKit\Http;
 
 /**
- * Decorates an HttpClientInterface with a practical subset of RFC 9111 (HTTP
- * Caching): freshness via Cache-Control max-age or Expires, and revalidation
- * via ETag/Last-Modified once an entry goes stale. Only GET and HEAD are
- * cached; everything else passes straight through.
+ * Decorates an HttpClientInterface with a practical subset of RFC 9111:
+ * freshness via Cache-Control max-age/Expires, revalidation via
+ * ETag/Last-Modified once stale. Only GET/HEAD are cached.
  *
- * Deliberately out of scope, compared to a full RFC 9111 implementation (and
- * Symfony's CachingHttpClient): no Vary support (a cached entry is reused for
- * any request to the same URL regardless of what varied the original
- * response), no stale-while-revalidate/stale-if-error, no request
- * collapsing. A response that sets Cache-Control but doesn't give a usable
- * freshness lifetime (no max-age, no Expires) is treated as not cacheable —
- * this errs conservative (never serves something stale by accident) rather
- * than guessing at a default TTL the way some implementations do.
+ * Out of scope: Vary support, stale-while-revalidate/stale-if-error, request
+ * collapsing. No usable freshness lifetime (no max-age, no Expires) means
+ * not cacheable — no guessed default TTL.
  *
  * @package rafalmasiarek\DashboardKit\Http
  */
@@ -59,9 +53,7 @@ final class CachingHttpClient implements HttpClientInterface
             return $this->fromCachedEntry($cached);
         }
 
-        // $cached is either null (true miss) or expired (stale, but its etag/last_modified
-        // are still worth sending as conditional-request validators) — either way,
-        // fetchAndMaybeCache() does the right thing with it.
+        // $cached: null (true miss) or expired (stale, validators still usable below).
         return $this->fetchAndMaybeCache($method, $url, $options, $key, $cached);
     }
 
@@ -83,9 +75,7 @@ final class CachingHttpClient implements HttpClientInterface
      * @param  string                     $url
      * @param  array<string, mixed>       $options
      * @param  string                     $key
-     * @param  array<string, mixed>|null  $stale A previously-cached entry that expired, whose
-     *                                            validators (ETag/Last-Modified) can be sent for
-     *                                            a conditional revalidation instead of a full refetch.
+     * @param  array<string, mixed>|null  $stale Expired entry whose validators can be sent for revalidation.
      * @return HttpResponseInterface
      */
     private function fetchAndMaybeCache(string $method, string $url, array $options, string $key, ?array $stale): HttpResponseInterface
@@ -112,11 +102,8 @@ final class CachingHttpClient implements HttpClientInterface
         if ($response->isSuccessful() && \in_array($response->getStatusCode(), [200, 203, 300, 301, 410], true)) {
             $ttl = $this->computeTtl($response);
             if ($ttl !== null && $ttl >= 0) {
-                // ttl === 0 (e.g. "Cache-Control: max-age=0") is a valid, if degenerate,
-                // directive: store the entry, but it's immediately stale, so the very next
-                // request revalidates it via If-None-Match/If-Modified-Since instead of
-                // skipping storage altogether (which would turn it into an unconditional
-                // miss every time and never actually revalidate).
+                // ttl === 0 (max-age=0) is valid: store it, but it's stale immediately,
+                // so the next request revalidates instead of missing every time.
                 $this->store->set($key, [
                     'status'        => $response->getStatusCode(),
                     'headers'       => $response->getHeaders(),

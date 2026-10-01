@@ -8,29 +8,19 @@ use rafalmasiarek\DashboardKit\Dns\DnsQueryException;
 use rafalmasiarek\DashboardKit\Dns\DnsResolverInterface;
 
 /**
- * curl-based HttpClientInterface implementation that resolves hostnames via an
- * injected DnsResolverInterface and pins the result with CURLOPT_RESOLVE,
- * instead of letting curl perform its own DNS resolution.
+ * curl-based HttpClientInterface implementation. Resolves hostnames via an
+ * injected DnsResolverInterface and pins the result with CURLOPT_RESOLVE
+ * instead of curl's own DNS. A failed resolve falls back to curl's own
+ * resolution, except under 'block_private_network' (see buildHandle()),
+ * where an unconfirmed target is treated as unsafe.
  *
- * request() returns a lazy CurlResponse immediately — see HttpResponseInterface
- * for what that means. All responses produced by one CurlHttpClient instance
- * share one curl_multi handle, created on first use; CurlResponse drives it
- * (via pumpUntilDone()) when its data is first accessed, which is also the
- * point at which any other still-pending responses from this same client get
- * to make progress.
+ * request() returns a lazy CurlResponse (see HttpResponseInterface). Every
+ * response from one client instance shares one curl_multi handle, created
+ * lazily; CurlResponse drives it on first access.
  *
- * DNS resolution failure never fails the request outright — it just falls
- * back to curl's own resolution, since a resolver hiccup (e.g. a custom
- * resolver being temporarily unreachable) should not break an otherwise
- * working HTTP call. The one exception is 'block_private_network' (see
- * buildHandle()) — there, a resolution that can't be confirmed safe is
- * treated as unsafe rather than silently falling through to an unchecked
- * connection.
- *
- * Redirects are followed by CurlResponse itself, one hop at a time, rather
- * than via CURLOPT_FOLLOWLOCATION — this is what lets it strip credential
- * headers when a redirect crosses origins, and re-run the private-network
- * check (and DNS pinning) on every hop instead of only the first one.
+ * Redirects are followed by CurlResponse itself, one hop at a time, so
+ * credential headers get stripped and the private-network check re-run on
+ * every hop, not just the first.
  *
  * @package rafalmasiarek\DashboardKit\Http
  */
@@ -60,21 +50,15 @@ final class CurlHttpClient implements HttpClientInterface
     }
 
     /**
-     * @param  string               $method  HTTP method (GET, POST, ...).
-     * @param  string               $url     Absolute URL.
-     * @param  array<string, mixed> $options See HttpClientInterface::request(). Extra keys beyond the
-     *                                        base interface: 'follow_redirects' (bool, default true),
-     *                                        'block_private_network' (bool, default false) — refuse to
-     *                                        connect when the target resolves to a private/reserved-range
-     *                                        address, checked again on every redirect hop; intended for
-     *                                        requests to externally-supplied URLs, not the app-wide
-     *                                        default client — 'max_connect_duration' (float, seconds) —
-     *                                        limits only the connect phase (DNS+TCP+TLS), separately from
-     *                                        'timeout' which bounds the whole request; and 'on_progress'
-     *                                        (callable(int $dlNow, int $dlSize, array $info): void) —
-     *                                        called periodically as the transfer progresses (at least once
-     *                                        per second while data is flowing); a thrown exception inside
-     *                                        it aborts the transfer and is reported via getError().
+     * Extra $options beyond HttpClientInterface::request(): 'follow_redirects' (bool,
+     * default true); 'block_private_network' (bool, default false), re-checked on every
+     * redirect hop; 'max_connect_duration' (float seconds) — connect phase only, separate
+     * from 'timeout'; 'on_progress' (callable(int $dlNow, int $dlSize, array $info): void),
+     * called periodically — a thrown exception aborts the transfer (see getError()).
+     *
+     * @param  string               $method
+     * @param  string               $url
+     * @param  array<string, mixed> $options
      * @return HttpResponseInterface
      */
     public function request(string $method, string $url, array $options = []): HttpResponseInterface
@@ -209,10 +193,7 @@ final class CurlHttpClient implements HttpClientInterface
 
     /**
      * Drives the shared curl_multi handle until $target's current hop finishes.
-     * Every other response's handle still pending on this client advances in the
-     * same loop — that's the actual concurrency: whichever of them curl reports
-     * done gets finalized immediately, whether or not anyone has asked for its
-     * result yet, and the loop only stops once $target specifically is resolved.
+     * Every other pending handle advances in the same loop — that's the concurrency.
      *
      * @internal Called only by CurlResponse::ensureComplete().
      */
