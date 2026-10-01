@@ -5,11 +5,18 @@ declare(strict_types=1);
 namespace rafalmasiarek\DashboardKit\Http;
 
 /**
- * Result of an HTTP request made via HttpClientInterface.
+ * Eager (already-resolved) HttpResponseInterface implementation.
+ *
+ * Useful for constructing a synthetic response (CachingHttpClient serving a
+ * cached entry, a test double, ...) where there's no real lazy transfer to
+ * drive — every accessor just returns the value given at construction time.
+ *
+ * CurlHttpClient does not return this class for a real network request; it
+ * returns CurlResponse, which is genuinely lazy. See HttpResponseInterface.
  *
  * @package rafalmasiarek\DashboardKit\Http
  */
-final readonly class HttpResponse
+final readonly class HttpResponse implements HttpResponseInterface
 {
     /**
      * @param int                        $statusCode HTTP status code. 0 when the request never reached the server.
@@ -30,43 +37,56 @@ final readonly class HttpResponse
     ) {
     }
 
-    /**
-     * @return bool True when the request completed and returned a 2xx status.
-     */
-    public function isSuccessful(): bool
+    public function getStatusCode(): int
     {
-        return $this->error === null && $this->statusCode >= 200 && $this->statusCode < 300;
+        return $this->statusCode;
     }
 
-    /**
-     * Returns the first value of a header, or null when absent.
-     *
-     * @param  string $name Header name, case-insensitive.
-     * @return string|null
-     */
+    public function getHeaders(): array
+    {
+        return $this->headers;
+    }
+
     public function getHeader(string $name): ?string
     {
         return $this->headers[\strtolower($name)][0] ?? null;
     }
 
-    /**
-     * Returns all values of a header, comma-joined (PSR-7 convention), or an empty string when absent.
-     *
-     * @param  string $name Header name, case-insensitive.
-     * @return string
-     */
     public function getHeaderLine(string $name): string
     {
         return \implode(', ', $this->headers[\strtolower($name)] ?? []);
     }
 
-    /**
-     * Decodes the body as JSON.
-     *
-     * @return mixed Decoded value, or null when the body isn't valid JSON.
-     */
+    public function getContent(): string
+    {
+        return $this->body;
+    }
+
     public function json(): mixed
     {
         return \json_decode($this->body, true);
+    }
+
+    public function isSuccessful(): bool
+    {
+        return $this->error === null && $this->statusCode >= 200 && $this->statusCode < 300;
+    }
+
+    public function getError(): ?string
+    {
+        return $this->error;
+    }
+
+    public function getInfo(?string $key = null): mixed
+    {
+        $info = $this->debug?->toArray() ?? [];
+        $info['canceled'] = false;
+
+        return $key === null ? $info : ($info[$key] ?? null);
+    }
+
+    public function cancel(): void
+    {
+        // Already resolved — nothing to cancel.
     }
 }

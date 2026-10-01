@@ -44,11 +44,27 @@ interface HttpClientInterface
      *  - local_pk    (string)               : client private key path, when separate from local_cert
      *  - passphrase  (string)               : client private key passphrase
      *  - cafile      (string)               : custom CA bundle path
+     *  - max_connect_duration (float)       : limits only the connect phase (DNS+TCP+TLS), in seconds,
+     *                                         separately from 'timeout' which bounds the whole request.
+     *                                         Not every implementation supports this distinction.
+     *  - on_progress (callable(int $dlNow, int $dlSize, array $info): void) : called periodically as
+     *                                         the transfer progresses (at least once per second while
+     *                                         data is flowing; $dlSize is -1 when unknown). A thrown
+     *                                         exception aborts the transfer and is reported via
+     *                                         HttpResponseInterface::getError(). Not every implementation
+     *                                         calls this.
+     *
+     * Returns a lazy response: no network I/O has necessarily happened yet when this
+     * method returns. The first call to any accessor on the returned object (getStatusCode(),
+     * getHeaders(), getContent(), ...) drives the request to completion. Calling request()
+     * several times before reading any of the responses lets an implementation that shares
+     * a single underlying transport (e.g. one curl_multi handle) run them concurrently;
+     * reading a response immediately makes that one call behave synchronously.
      *
      * @param  string               $method  HTTP method (GET, POST, ...).
      * @param  string               $url     Absolute URL.
      * @param  array<string, mixed> $options See above.
-     * @return HttpResponse
+     * @return HttpResponseInterface
      */
-    public function request(string $method, string $url, array $options = []): HttpResponse;
+    public function request(string $method, string $url, array $options = []): HttpResponseInterface;
 }
