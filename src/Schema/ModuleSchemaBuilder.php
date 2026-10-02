@@ -16,14 +16,18 @@ use PDO;
  *   id         — CHAR(36) NOT NULL, PRIMARY KEY (UUID v4, application-generated)
  *   created_at — DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
  *
- * Optional system column, enabled per-table with 'timestamps' => true:
- *   updated_at — DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+ * Optional system columns:
+ *   'timestamps'   => true adds updated_at — DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ *                     plus ON UPDATE CURRENT_TIMESTAMP on MySQL only (no SQLite equivalent).
+ *   'soft_deletes' => true adds deleted_at — DATETIME NULL DEFAULT NULL, matching
+ *                     Model's $softDeletes convention.
  *
  * Table definition format:
  *
  *   'schema' => [
  *       'my_table' => [
  *           'timestamps'   => true,                    // adds updated_at (optional)
+ *           'soft_deletes' => true,                    // adds deleted_at (optional)
  *           'columns' => [
  *               'user_id' => ['type' => 'id_ref',      'null' => false],
  *               'label'   => ['type' => 'varchar(255)', 'null' => false],
@@ -152,6 +156,7 @@ final class ModuleSchemaBuilder
      *   - 'id'         prepended as CHAR(36) NOT NULL (UUID PK) if not defined by the user.
      *   - 'created_at' appended as DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP if not defined.
      *   - 'updated_at' appended with ON UPDATE CURRENT_TIMESTAMP if 'timestamps' => true and not defined.
+     *   - 'deleted_at' appended as DATETIME NULL DEFAULT NULL if 'soft_deletes' => true and not defined.
      *
      * User-defined columns always take priority over injected ones.
      *
@@ -160,8 +165,9 @@ final class ModuleSchemaBuilder
      */
     private function expandDefinition(array $definition): array
     {
-        $userColumns = (array) ($definition['columns'] ?? []);
-        $timestamps  = (bool)  ($definition['timestamps'] ?? false);
+        $userColumns  = (array) ($definition['columns'] ?? []);
+        $timestamps   = (bool)  ($definition['timestamps']   ?? false);
+        $softDeletes  = (bool)  ($definition['soft_deletes'] ?? false);
 
         $columns = [];
 
@@ -185,6 +191,10 @@ final class ModuleSchemaBuilder
                 'default'   => 'CURRENT_TIMESTAMP',
                 'on_update' => 'CURRENT_TIMESTAMP',
             ];
+        }
+
+        if ($softDeletes && !array_key_exists('deleted_at', $columns)) {
+            $columns['deleted_at'] = ['type' => 'datetime', 'null' => true, 'default' => null];
         }
 
         $definition['columns'] = $columns;

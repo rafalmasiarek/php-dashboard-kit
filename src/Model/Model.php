@@ -23,6 +23,10 @@ use PDO;
  * Supported cast types: int, float, bool, string, datetime (→ DateTimeImmutable),
  * json, array (both decode JSON to associative array).
  *
+ * Soft delete is not GDPR/RODO erasure — the row still exists physically.
+ * Use forceDelete() for real erasure, or anonymize columns if the row must
+ * be kept. For retention-based cleanup of trashed rows, see prunable()/prune().
+ *
  * @package rafalmasiarek\DashboardKit\Model
  */
 abstract class Model
@@ -47,6 +51,42 @@ abstract class Model
      * @var array<string, 'int'|'float'|'bool'|'string'|'datetime'|'json'|'array'>
      */
     protected static array $casts = [];
+
+    /**
+     * Whether save() maintains created_at/updated_at automatically. On by default.
+     *
+     * @var bool
+     */
+    protected static bool $timestamps = true;
+
+    /**
+     * Column written on insert and on every subsequent save().
+     *
+     * @var string
+     */
+    protected static string $createdAtColumn = 'created_at';
+
+    /**
+     * Column written on every save(), including insert.
+     *
+     * @var string
+     */
+    protected static string $updatedAtColumn = 'updated_at';
+
+    /**
+     * Whether delete() soft-deletes (sets deletedAtColumn) instead of removing the row.
+     * Off by default.
+     *
+     * @var bool
+     */
+    protected static bool $softDeletes = false;
+
+    /**
+     * Column set by a soft delete and checked by find()/all()/where() to hide trashed rows.
+     *
+     * @var string
+     */
+    protected static string $deletedAtColumn = 'deleted_at';
 
     /**
      * Lazy connection factory. Called once; result is cached in $resolved.
@@ -140,32 +180,26 @@ abstract class Model
     }
 
     /**
-     * Finds a single model by primary key.
+     * Finds a single model by primary key. Hidden when soft-deleted — use
+     * withTrashed() to look up a possibly-trashed row by id.
      *
      * @param  int|string $id Primary key value.
-     * @return static|null     Null when no matching row exists.
+     * @return static|null     Null when no matching (non-trashed) row exists.
      */
     public static function find(int|string $id): ?static
     {
-        $table = static::$table;
-        $pk    = static::$primaryKey;
-        $stmt  = static::db()->prepare("SELECT * FROM `{$table}` WHERE `{$pk}` = ? LIMIT 1");
-        $stmt->execute([$id]);
-        $row = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $row !== false ? static::fromRow($row) : null;
+        /** @var static|null */
+        return static::where(static::$primaryKey, $id)->first();
     }
 
     /**
-     * Returns all rows in the table as a Collection of model instances.
+     * Returns all non-trashed rows in the table as a Collection of model instances.
      *
      * @return Collection
      */
     public static function all(): Collection
     {
-        $table = static::$table;
-        $stmt  = static::db()->query("SELECT * FROM `{$table}`");
-        $rows  = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        return new Collection(array_map(static fn(array $r) => static::fromRow($r), $rows));
+        return static::newQuery()->get();
     }
 
     /**
@@ -182,11 +216,67 @@ abstract class Model
      */
     public static function where(string $column, mixed $operatorOrValue, mixed $value = null): QueryBuilder
     {
-        [$operator, $boundValue] = $value !== null
-            ? [(string) $operatorOrValue, $value]
-            : ['=', $operatorOrValue];
+        return static::newQuery()->where($column, $operatorOrValue, $value);
+    }
 
-        return (new QueryBuilder(static::class, static::db()))->where($column, $operator, $boundValue);
+    /**
+     * Starts a query that also matches soft-deleted rows.
+     *
+     * @return QueryBuilder
+     */
+    public static function withTrashed(): QueryBuilder
+    {
+        return static::newQuery()->withTrashed();
+    }
+
+    /**
+     * Starts a query that matches only soft-deleted rows.
+     *
+     * @return QueryBuilder
+     */
+    public static function onlyTrashed(): QueryBuilder
+    {
+        return static::newQuery()->onlyTrashed();
+    }
+
+    /**
+     * Whether this model soft-deletes instead of removing rows outright.
+     *
+     * @return bool
+     */
+    public static function usesSoftDeletes(): bool
+    {
+        return static::$softDeletes;
+    }
+
+    /**
+     * Column name soft-deletes are written to.
+     *
+     * @return string
+     */
+    public static function getDeletedAtColumn(): string
+    {
+        return static::$deletedAtColumn;
+    }
+
+    /**
+     * Builds a fresh, unconditioned query for this model's table.
+     *
+     * @return QueryBuilder
+     */
+    protected static function newQuery(): QueryBuilder
+    {
+        return new QueryBuilder(static::class, static::db());
+    }
+
+    /**
+     * Current timestamp in the format written to created_at/updated_at columns.
+     *
+     * @return string
+     */
+    protected static function now(): string
+    {
+        return (new DateTimeImmutable())->format('Y-m-d H:i:s');
     }
 
     /**
@@ -296,7 +386,9 @@ abstract class Model
      *
      * Issues INSERT when $exists is false; UPDATE when $exists is true.
      * On successful INSERT, sets $exists = true and stores the last-insert-id
-     * when no primary-key value was provided in attributes.
+     * when no primary-key value was provided in attributes. When $timestamps
+     * is enabled, createdAtColumn is set on insert (unless already present)
+     * and updatedAtColumn is set on every save.
      *
      * @return bool True on success.
      */
@@ -304,6 +396,14 @@ abstract class Model
     {
         $table = static::$table;
         $pk    = static::$primaryKey;
+
+        if (static::$timestamps) {
+            $now = static::now();
+            if (!$this->exists) {
+                $this->attributes[static::$createdAtColumn] ??= $now;
+            }
+            $this->attributes[static::$updatedAtColumn] = $now;
+        }
 
         if ($this->exists) {
             $data = array_filter(
@@ -332,11 +432,31 @@ abstract class Model
     }
 
     /**
-     * Deletes the row from the database and marks the instance as non-persisted.
+     * Removes the row. Soft-deletes (sets deletedAtColumn, keeps the row) when
+     * $softDeletes is enabled; otherwise deletes it outright.
      *
      * @return bool False when the instance has not been persisted yet.
      */
     public function delete(): bool
+    {
+        if (!$this->exists) {
+            return false;
+        }
+
+        if (static::$softDeletes) {
+            $this->attributes[static::$deletedAtColumn] = static::now();
+            return $this->save();
+        }
+
+        return $this->forceDelete();
+    }
+
+    /**
+     * Deletes the row outright, bypassing soft deletes.
+     *
+     * @return bool False when the instance has not been persisted yet.
+     */
+    public function forceDelete(): bool
     {
         if (!$this->exists) {
             return false;
@@ -352,6 +472,95 @@ abstract class Model
         }
 
         return $result;
+    }
+
+    /**
+     * Clears a soft delete, making the row visible to normal queries again.
+     *
+     * @return bool False when this model does not use soft deletes.
+     */
+    public function restore(): bool
+    {
+        if (!static::$softDeletes) {
+            return false;
+        }
+
+        $this->attributes[static::$deletedAtColumn] = null;
+        return $this->save();
+    }
+
+    /**
+     * Whether this instance is currently soft-deleted.
+     *
+     * @return bool
+     */
+    public function trashed(): bool
+    {
+        return static::$softDeletes && $this->get(static::$deletedAtColumn) !== null;
+    }
+
+    /**
+     * Query selecting rows eligible for prune(). Null = pruning disabled.
+     * Override per model, e.g. return static::trashedOlderThan('-30 days').
+     *
+     * @return QueryBuilder|null
+     */
+    protected static function prunable(): ?QueryBuilder
+    {
+        return null;
+    }
+
+    /**
+     * Called on each row before prune() force-deletes it. Override to clean
+     * up owned resources (files, cache, ...).
+     *
+     * @return void
+     */
+    protected function pruning(): void
+    {
+    }
+
+    /**
+     * Force-deletes every row matched by prunable(), chunked, calling
+     * pruning() on each first. Call from a scheduled task, not per-request.
+     *
+     * @param  int $chunkSize Rows fetched and removed per batch.
+     * @return int Number of rows pruned.
+     */
+    public static function prune(int $chunkSize = 100): int
+    {
+        $query = static::prunable();
+        if ($query === null) {
+            return 0;
+        }
+
+        $pruned = 0;
+        while (true) {
+            $batch = $query->limit($chunkSize)->get();
+            if ($batch->count() === 0) {
+                break;
+            }
+
+            foreach ($batch as $model) {
+                $model->pruning();
+                $model->forceDelete();
+                $pruned++;
+            }
+        }
+
+        return $pruned;
+    }
+
+    /**
+     * Soft-deleted rows older than $interval (DateTime::modify() format, e.g. '-30 days').
+     *
+     * @param  string $interval
+     * @return QueryBuilder
+     */
+    protected static function trashedOlderThan(string $interval): QueryBuilder
+    {
+        $threshold = (new DateTimeImmutable())->modify($interval)->format('Y-m-d H:i:s');
+        return static::onlyTrashed()->where(static::$deletedAtColumn, '<', $threshold);
     }
 
     /**
