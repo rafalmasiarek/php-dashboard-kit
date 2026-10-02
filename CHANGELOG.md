@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v3.0.0...v4.0.0) (2026-10-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **http:** rafalmasiarek\DashboardKit\Http\* (except RequestTimingMiddleware, SafeErrorHandler, HttpMessagePicker) and rafalmasiarek\DashboardKit\Dns\* no longer exist. Require rafalmasiarek/http-client ^1.0 and update imports to rafalmasiarek\HttpClient\* / rafalmasiarek\HttpClient\Dns\*.
+
+### Features
+
+* **http:** use rafalmasiarek/http-client instead of bundled src/Http and src/Dns ([#32](https://github.com/rafalmasiarek/php-dashboard-kit/issues/32)) ([29fafbb](https://github.com/rafalmasiarek/php-dashboard-kit/commit/29fafbba94b65e01e0492632fa5b08a3d3ca8221))
+* **model:** add timestamps, soft deletes, and pruning to Model ([#33](https://github.com/rafalmasiarek/php-dashboard-kit/issues/33)) ([bb31c2e](https://github.com/rafalmasiarek/php-dashboard-kit/commit/bb31c2e182304a602b20d5a8307b002da64e3de5))
+
 ## [3.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v2.4.0...v3.0.0) (2026-10-01)
 
 
