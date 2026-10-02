@@ -42,6 +42,20 @@ final class QueryBuilder
     private array $orderBys = [];
 
     /**
+     * Whether soft-deleted rows are included. Set by withTrashed()/onlyTrashed().
+     *
+     * @var bool
+     */
+    private bool $includeTrashed = false;
+
+    /**
+     * Whether only soft-deleted rows should match. Set by onlyTrashed().
+     *
+     * @var bool
+     */
+    private bool $onlyTrashed = false;
+
+    /**
      * @param string $modelClass Fully-qualified model class name.
      * @param PDO    $pdo        Active database connection.
      */
@@ -51,18 +65,47 @@ final class QueryBuilder
     ) {}
 
     /**
-     * Adds a WHERE condition.
+     * Includes soft-deleted rows in the result, alongside normal ones.
      *
-     * Multiple calls are combined with AND.
-     *
-     * @param  string $column   Column name (trusted, not user input).
-     * @param  string $operator Comparison operator: =, !=, <, >, <=, >=, LIKE, IN.
-     * @param  mixed  $value    Bound value.
      * @return static
      */
-    public function where(string $column, string $operator, mixed $value): static
+    public function withTrashed(): static
     {
-        $this->wheres[] = ['column' => $column, 'operator' => $operator, 'value' => $value];
+        $this->includeTrashed = true;
+        return $this;
+    }
+
+    /**
+     * Restricts the result to soft-deleted rows only.
+     *
+     * @return static
+     */
+    public function onlyTrashed(): static
+    {
+        $this->includeTrashed = true;
+        $this->onlyTrashed    = true;
+        return $this;
+    }
+
+    /**
+     * Adds a WHERE condition. Multiple calls are combined with AND.
+     *
+     * When called with two arguments, '=' is assumed as the operator:
+     *   ->where('active', 1)          → WHERE `active` = ?
+     *   ->where('role', '!=', 'user') → WHERE `role` != ?
+     *
+     * @param  string $column          Column name (trusted, not user input).
+     * @param  mixed  $operatorOrValue Operator string when $value is given; bound value otherwise.
+     * @param  mixed  $value           Bound value when an explicit operator is given.
+     * @return static
+     */
+    public function where(string $column, mixed $operatorOrValue, mixed $value = null): static
+    {
+        [$operator, $boundValue] = $value !== null
+            ? [(string) $operatorOrValue, $value]
+            : ['=', $operatorOrValue];
+
+        $this->wheres[] = ['column' => $column, 'operator' => $operator, 'value' => $boundValue];
         return $this;
     }
 
@@ -174,23 +217,52 @@ final class QueryBuilder
     }
 
     /**
-     * Builds the WHERE clause string and collects bound values.
+     * Builds the WHERE clause string and collects bound values, including
+     * the soft-delete filter implied by withTrashed()/onlyTrashed() when the
+     * model uses soft deletes.
      *
      * @return array{0: string, 1: list<mixed>}
      */
     private function buildWhere(): array
     {
-        if ($this->wheres === []) {
-            return ['', []];
-        }
-
         $clauses = [];
         $params  = [];
+
         foreach ($this->wheres as $where) {
             $clauses[] = "`{$where['column']}` {$where['operator']} ?";
             $params[]  = $where['value'];
         }
 
+        $softDeleteClause = $this->softDeleteClause();
+        if ($softDeleteClause !== null) {
+            $clauses[] = $softDeleteClause;
+        }
+
+        if ($clauses === []) {
+            return ['', []];
+        }
+
         return [implode(' AND ', $clauses), $params];
+    }
+
+    /**
+     * Soft-delete SQL fragment implied by the model and withTrashed()/onlyTrashed(), if any.
+     *
+     * @return string|null
+     */
+    private function softDeleteClause(): ?string
+    {
+        $class = $this->modelClass;
+        if (!$class::usesSoftDeletes()) {
+            return null;
+        }
+
+        $column = $class::getDeletedAtColumn();
+
+        if ($this->onlyTrashed) {
+            return "`{$column}` IS NOT NULL";
+        }
+
+        return $this->includeTrashed ? null : "`{$column}` IS NULL";
     }
 }
