@@ -13,10 +13,12 @@
     "php-di/php-di": "^6.4 || ^7.0",
     "rafalmasiarek/authkit": "^2.1.2",
     "rafalmasiarek/csrf-token": "^1.6",
-    "rafalmasiarek/http-client": "^1.0",
     "rafalmasiarek/real-ip-resolver": "^2.3",
     "filp/whoops": "^2.15",
     "monolog/monolog": "^3.0"
+  },
+  "suggest": {
+    "rafalmasiarek/http-client": "HTTP client used by addons/apps making outbound requests (e.g. dashboard-kit-addon-recaptcha); not used by dashboard-kit itself"
   },
   "autoload": {
     "psr-4": {
