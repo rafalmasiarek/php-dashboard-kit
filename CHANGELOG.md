@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.0.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.0.0...v4.0.1) (2026-10-04)
+
+
+### Bug Fixes
+
+* **composer:** remove unused http-client requirement ([#35](https://github.com/rafalmasiarek/php-dashboard-kit/issues/35)) ([1b98025](https://github.com/rafalmasiarek/php-dashboard-kit/commit/1b98025a7cb589891d72de31dd14f4fb48b2d123))
+
 ## [4.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v3.0.0...v4.0.0) (2026-10-02)
 
 
