@@ -216,7 +216,9 @@ abstract class Model
      */
     public static function where(string $column, mixed $operatorOrValue, mixed $value = null): QueryBuilder
     {
-        return static::newQuery()->where($column, $operatorOrValue, $value);
+        return func_num_args() >= 3
+            ? static::newQuery()->where($column, (string) $operatorOrValue, $value)
+            : static::newQuery()->where($column, $operatorOrValue);
     }
 
     /**
@@ -266,7 +268,139 @@ abstract class Model
      */
     protected static function newQuery(): QueryBuilder
     {
-        return new QueryBuilder(static::class, static::db());
+        return new QueryBuilder(static::class, static::$table, static::db(), static::$softDeletes, static::$deletedAtColumn);
+    }
+
+    /**
+     * Starts a query against an arbitrary table with no dedicated model class —
+     * for tables whose name is only known at runtime (e.g. one table per
+     * admin-defined content type). Rows come back as plain arrays, not model
+     * instances, and soft deletes are not applied.
+     *
+     * @param  string $table
+     * @return QueryBuilder
+     */
+    public static function on(string $table): QueryBuilder
+    {
+        return new QueryBuilder(null, $table, static::db());
+    }
+
+    /**
+     * Starts a fluent WHERE column IN (...) chain for the model's table.
+     *
+     * @param  string      $column Column name (not user input).
+     * @param  list<mixed> $values
+     * @return QueryBuilder
+     */
+    public static function whereIn(string $column, array $values): QueryBuilder
+    {
+        return static::newQuery()->whereIn($column, $values);
+    }
+
+    /**
+     * Starts a fluent WHERE column NOT IN (...) chain for the model's table.
+     *
+     * @param  string      $column Column name (not user input).
+     * @param  list<mixed> $values
+     * @return QueryBuilder
+     */
+    public static function whereNotIn(string $column, array $values): QueryBuilder
+    {
+        return static::newQuery()->whereNotIn($column, $values);
+    }
+
+    /**
+     * Runs $callback inside a transaction, committing on normal return and
+     * rolling back if it throws.
+     *
+     * @template T
+     * @param  callable(): T $callback
+     * @return T
+     */
+    public static function transaction(callable $callback): mixed
+    {
+        $db = static::db();
+        $db->beginTransaction();
+        try {
+            $result = $callback();
+            $db->commit();
+            return $result;
+        } catch (\Throwable $e) {
+            $db->rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Inserts a row, or updates it in one atomic statement when a row already
+     * matches $uniqueBy (MySQL: ON DUPLICATE KEY UPDATE; SQLite: ON CONFLICT
+     * DO UPDATE) — safe under concurrent writers, unlike a SELECT-then-branch.
+     * createdAtColumn is never touched on the update branch.
+     *
+     * @param  array<string, mixed> $attributes Column-value pairs to insert.
+     * @param  list<string>         $uniqueBy   Columns identifying an existing row (unique/PK).
+     * @param  list<string>|null    $updateColumns Columns to refresh on conflict. Defaults to
+     *                                             every column except $uniqueBy and createdAtColumn.
+     * @return bool
+     */
+    public static function upsert(array $attributes, array $uniqueBy, ?array $updateColumns = null): bool
+    {
+        $table  = static::$table;
+        $driver = (string) static::db()->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        if (static::$timestamps) {
+            $now = static::now();
+            $attributes[static::$createdAtColumn] ??= $now;
+            $attributes[static::$updatedAtColumn] = $now;
+        }
+
+        $columns       = array_keys($attributes);
+        $updateColumns ??= array_values(array_diff($columns, [...$uniqueBy, static::$createdAtColumn]));
+
+        $columnList   = implode(', ', array_map(static fn(string $c) => "`{$c}`", $columns));
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+
+        if ($driver === 'sqlite') {
+            $conflictCols = implode(', ', array_map(static fn(string $c) => "`{$c}`", $uniqueBy));
+            $updates      = implode(', ', array_map(static fn(string $c) => "`{$c}` = excluded.`{$c}`", $updateColumns));
+            $sql = "INSERT INTO `{$table}` ({$columnList}) VALUES ({$placeholders}) "
+                . "ON CONFLICT({$conflictCols}) DO UPDATE SET {$updates}";
+        } else {
+            $updates = implode(', ', array_map(static fn(string $c) => "`{$c}` = VALUES(`{$c}`)", $updateColumns));
+            $sql = "INSERT INTO `{$table}` ({$columnList}) VALUES ({$placeholders}) "
+                . "ON DUPLICATE KEY UPDATE {$updates}";
+        }
+
+        $stmt = static::db()->prepare($sql);
+        return $stmt->execute(array_values($attributes));
+    }
+
+    /**
+     * Inserts a row, silently doing nothing if it would violate a unique
+     * constraint (MySQL: INSERT IGNORE; SQLite: INSERT OR IGNORE) — idempotent
+     * insert, not an upsert; an existing row is never modified.
+     *
+     * @param  array<string, mixed> $attributes Column-value pairs to insert.
+     * @return bool
+     */
+    public static function insertOrIgnore(array $attributes): bool
+    {
+        $table  = static::$table;
+        $driver = (string) static::db()->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        if (static::$timestamps) {
+            $now = static::now();
+            $attributes[static::$createdAtColumn] ??= $now;
+            $attributes[static::$updatedAtColumn] ??= $now;
+        }
+
+        $columns      = array_keys($attributes);
+        $columnList   = implode(', ', array_map(static fn(string $c) => "`{$c}`", $columns));
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $verb         = $driver === 'sqlite' ? 'INSERT OR IGNORE' : 'INSERT IGNORE';
+
+        $stmt = static::db()->prepare("{$verb} INTO `{$table}` ({$columnList}) VALUES ({$placeholders})");
+        return $stmt->execute(array_values($attributes));
     }
 
     /**
@@ -407,7 +541,7 @@ abstract class Model
 
         if ($this->exists) {
             $data = array_filter(
-                $this->attributes,
+                $this->encodeForPersistence(),
                 static fn(string $k) => $k !== $pk,
                 ARRAY_FILTER_USE_KEY,
             );
@@ -416,10 +550,11 @@ abstract class Model
             return $stmt->execute([...array_values($data), $this->attributes[$pk]]);
         }
 
-        $columns      = implode(', ', array_map(static fn(string $k) => "`{$k}`", array_keys($this->attributes)));
-        $placeholders = implode(', ', array_fill(0, count($this->attributes), '?'));
+        $toInsert     = $this->encodeForPersistence();
+        $columns      = implode(', ', array_map(static fn(string $k) => "`{$k}`", array_keys($toInsert)));
+        $placeholders = implode(', ', array_fill(0, count($toInsert), '?'));
         $stmt         = static::db()->prepare("INSERT INTO `{$table}` ({$columns}) VALUES ({$placeholders})");
-        $result       = $stmt->execute(array_values($this->attributes));
+        $result       = $stmt->execute(array_values($toInsert));
 
         if ($result) {
             $this->exists = true;
@@ -582,9 +717,30 @@ abstract class Model
             'bool'   => (bool) $value,
             'string' => (string) $value,
             'datetime' => new DateTimeImmutable((string) $value),
-            'json', 'array' => json_decode((string) $value, true),
+            'json', 'array' => is_string($value) ? json_decode($value, true) : $value,
             default  => $value,
         };
+    }
+
+    /**
+     * Attributes ready to bind to a PDO statement: json/array-cast columns
+     * holding a non-string value (array/object) are json_encode()'d; everything
+     * else passes through unchanged. Does not mutate $this->attributes.
+     *
+     * @return array<string, mixed>
+     */
+    private function encodeForPersistence(): array
+    {
+        $result = $this->attributes;
+
+        foreach ($result as $key => $value) {
+            $castType = static::$casts[$key] ?? null;
+            if (($castType === 'json' || $castType === 'array') && $value !== null && !is_string($value)) {
+                $result[$key] = json_encode($value);
+            }
+        }
+
+        return $result;
     }
 
     /**

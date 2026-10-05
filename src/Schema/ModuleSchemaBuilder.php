@@ -153,7 +153,10 @@ final class ModuleSchemaBuilder
      * Expands a raw table definition by injecting system columns.
      *
      * Injection rules:
-     *   - 'id'         prepended as CHAR(36) NOT NULL (UUID PK) if not defined by the user.
+     *   - 'id'         prepended as CHAR(36) NOT NULL (UUID PK) unless the user defines their
+     *                  own 'id' column, their own 'primary', or sets 'no_id' => true (for a
+     *                  table whose PK is a different column, e.g. a token string, or a
+     *                  composite-key junction table with no single PK column at all).
      *   - 'created_at' appended as DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP if not defined.
      *   - 'updated_at' appended with ON UPDATE CURRENT_TIMESTAMP if 'timestamps' => true and not defined.
      *   - 'deleted_at' appended as DATETIME NULL DEFAULT NULL if 'soft_deletes' => true and not defined.
@@ -168,10 +171,13 @@ final class ModuleSchemaBuilder
         $userColumns  = (array) ($definition['columns'] ?? []);
         $timestamps   = (bool)  ($definition['timestamps']   ?? false);
         $softDeletes  = (bool)  ($definition['soft_deletes'] ?? false);
+        $hasOwnPrimary = array_key_exists('id', $userColumns)
+            || isset($definition['primary'])
+            || (bool) ($definition['no_id'] ?? false);
 
         $columns = [];
 
-        if (!array_key_exists('id', $userColumns)) {
+        if (!$hasOwnPrimary) {
             $columns['id']          = ['type' => 'char(36)', 'null' => false];
             $definition['primary'] ??= 'id';
         }

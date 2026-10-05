@@ -4,25 +4,34 @@ declare(strict_types=1);
 
 namespace rafalmasiarek\DashboardKit\Model;
 
+use DateTimeImmutable;
 use PDO;
 
 /**
- * Fluent SELECT query builder for a single model class.
+ * Fluent SELECT query builder for a model class or an ad-hoc table.
  *
- * Created by Model::where() and returned for method chaining. Column names
- * are interpolated directly into SQL — callers must not pass user-supplied
- * column names. Values are always bound as prepared-statement parameters.
+ * Created by Model::where()/Model::on() and returned for method chaining.
+ * Column and table names are interpolated directly into SQL — callers must
+ * not pass user-supplied identifiers. Values are always bound as
+ * prepared-statement parameters, except Raw (emitted verbatim).
  *
  * @package rafalmasiarek\DashboardKit\Model
  */
 final class QueryBuilder
 {
     /**
-     * WHERE conditions accumulated via where() calls.
+     * WHERE conditions accumulated via where()/whereIn() calls.
      *
-     * @var list<array{column: string, operator: string, value: mixed}>
+     * @var list<array{column: string, operator: string, value: mixed}|array{column: string, in: list<mixed>, not: bool}>
      */
     private array $wheres = [];
+
+    /**
+     * JOIN clauses accumulated via join()/leftJoin().
+     *
+     * @var list<string>
+     */
+    private array $joins = [];
 
     /**
      * @var int|null LIMIT value; null = no limit.
@@ -56,12 +65,20 @@ final class QueryBuilder
     private bool $onlyTrashed = false;
 
     /**
-     * @param string $modelClass Fully-qualified model class name.
-     * @param PDO    $pdo        Active database connection.
+     * @param string|null $modelClass     Fully-qualified model class, or null for an ad-hoc
+     *                                     table (Model::on()) — rows are returned as plain
+     *                                     arrays instead of model instances when null.
+     * @param string      $table          Table name.
+     * @param PDO         $pdo            Active database connection.
+     * @param bool        $softDeletes    Whether to filter deleted_at automatically.
+     * @param string      $deletedAtColumn Column soft-deletes are written to.
      */
     public function __construct(
-        private readonly string $modelClass,
-        private readonly PDO    $pdo,
+        private readonly ?string $modelClass,
+        private readonly string $table,
+        private readonly PDO $pdo,
+        private readonly bool $softDeletes = false,
+        private readonly string $deletedAtColumn = 'deleted_at',
     ) {}
 
     /**
@@ -94,18 +111,78 @@ final class QueryBuilder
      *   ->where('active', 1)          → WHERE `active` = ?
      *   ->where('role', '!=', 'user') → WHERE `role` != ?
      *
+     * A null value renders IS NULL / IS NOT NULL instead of binding a
+     * parameter. A Raw value is emitted verbatim instead of being bound:
+     *   ->where('expires_at', '>', new Raw('NOW()'))
+     *
      * @param  string $column          Column name (trusted, not user input).
      * @param  mixed  $operatorOrValue Operator string when $value is given; bound value otherwise.
-     * @param  mixed  $value           Bound value when an explicit operator is given.
+     * @param  mixed  $value           Bound value, null, or Raw when an explicit operator is given.
      * @return static
      */
     public function where(string $column, mixed $operatorOrValue, mixed $value = null): static
     {
-        [$operator, $boundValue] = $value !== null
+        [$operator, $boundValue] = func_num_args() >= 3
             ? [(string) $operatorOrValue, $value]
             : ['=', $operatorOrValue];
 
         $this->wheres[] = ['column' => $column, 'operator' => $operator, 'value' => $boundValue];
+        return $this;
+    }
+
+    /**
+     * Adds a WHERE column IN (...) condition.
+     *
+     * @param  string      $column Column name (trusted, not user input).
+     * @param  list<mixed> $values Bound values. An empty list matches no rows.
+     * @return static
+     */
+    public function whereIn(string $column, array $values): static
+    {
+        $this->wheres[] = ['column' => $column, 'in' => $values, 'not' => false];
+        return $this;
+    }
+
+    /**
+     * Adds a WHERE column NOT IN (...) condition.
+     *
+     * @param  string      $column Column name (trusted, not user input).
+     * @param  list<mixed> $values Bound values. An empty list matches every row.
+     * @return static
+     */
+    public function whereNotIn(string $column, array $values): static
+    {
+        $this->wheres[] = ['column' => $column, 'in' => $values, 'not' => true];
+        return $this;
+    }
+
+    /**
+     * Adds an INNER JOIN clause.
+     *
+     * @param  string $table    Table to join (trusted, not user input).
+     * @param  string $first    Column on the already-selected table(s).
+     * @param  string $operator Comparison operator, usually '='.
+     * @param  string $second   Column on $table.
+     * @return static
+     */
+    public function join(string $table, string $first, string $operator, string $second): static
+    {
+        $this->joins[] = "INNER JOIN `{$table}` ON {$first} {$operator} {$second}";
+        return $this;
+    }
+
+    /**
+     * Adds a LEFT JOIN clause.
+     *
+     * @param  string $table    Table to join (trusted, not user input).
+     * @param  string $first    Column on the already-selected table(s).
+     * @param  string $operator Comparison operator, usually '='.
+     * @param  string $second   Column on $table.
+     * @return static
+     */
+    public function leftJoin(string $table, string $first, string $operator, string $second): static
+    {
+        $this->joins[] = "LEFT JOIN `{$table}` ON {$first} {$operator} {$second}";
         return $this;
     }
 
@@ -147,7 +224,8 @@ final class QueryBuilder
     }
 
     /**
-     * Executes the SELECT and returns a collection of model instances.
+     * Executes the SELECT. Returns model instances when built from a model
+     * class, or plain associative arrays for an ad-hoc table (Model::on()).
      *
      * @return Collection
      */
@@ -156,17 +234,22 @@ final class QueryBuilder
         [$sql, $params] = $this->buildSelect();
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
-        $rows  = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($this->modelClass === null) {
+            return new Collection($rows);
+        }
+
         $class = $this->modelClass;
         return new Collection(array_map(static fn(array $row) => $class::fromRow($row), $rows));
     }
 
     /**
-     * Returns the first matching model instance, or null when none found.
+     * Returns the first matching row, or null when none found.
      *
-     * @return object|null
+     * @return object|array<string, mixed>|null
      */
-    public function first(): ?object
+    public function first(): object|array|null
     {
         $this->limitVal = 1;
         return $this->get()->first();
@@ -179,14 +262,62 @@ final class QueryBuilder
      */
     public function count(): int
     {
-        $class = $this->modelClass;
-        $table = $class::getTable();
         [$whereClause, $params] = $this->buildWhere();
-        $sql  = "SELECT COUNT(*) FROM `{$table}`";
+        $sql  = "SELECT COUNT(*) FROM `{$this->table}`" . $this->joinSql();
         $sql .= $whereClause !== '' ? " WHERE {$whereClause}" : '';
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Deletes every matching row in one statement. Soft-deletes (bulk UPDATE
+     * of deletedAtColumn) when the model uses soft deletes; otherwise a hard
+     * DELETE. Use forceDelete() to always hard-delete regardless.
+     *
+     * @return int Number of rows affected.
+     */
+    public function delete(): int
+    {
+        if ($this->softDeletes && !$this->onlyTrashed) {
+            return $this->update([$this->deletedAtColumn => (new DateTimeImmutable())->format('Y-m-d H:i:s')]);
+        }
+
+        return $this->forceDelete();
+    }
+
+    /**
+     * Deletes every matching row outright in one statement, bypassing soft deletes.
+     *
+     * @return int Number of rows affected.
+     */
+    public function forceDelete(): int
+    {
+        [$whereClause, $params] = $this->buildWhere();
+        $sql  = "DELETE FROM `{$this->table}`";
+        $sql .= $whereClause !== '' ? " WHERE {$whereClause}" : '';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->rowCount();
+    }
+
+    /**
+     * Updates every matching row with the given column values in one statement.
+     * Does not auto-manage timestamps — include updatedAtColumn in $attributes
+     * if it should be refreshed.
+     *
+     * @param  array<string, mixed> $attributes
+     * @return int Number of rows affected.
+     */
+    public function update(array $attributes): int
+    {
+        [$whereClause, $whereParams] = $this->buildWhere();
+        $sets = implode(', ', array_map(static fn(string $k) => "`{$k}` = ?", array_keys($attributes)));
+        $sql  = "UPDATE `{$this->table}` SET {$sets}";
+        $sql .= $whereClause !== '' ? " WHERE {$whereClause}" : '';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute([...array_values($attributes), ...$whereParams]);
+        return $stmt->rowCount();
     }
 
     /**
@@ -196,11 +327,9 @@ final class QueryBuilder
      */
     private function buildSelect(): array
     {
-        $class = $this->modelClass;
-        $table = $class::getTable();
         [$whereClause, $params] = $this->buildWhere();
 
-        $sql  = "SELECT * FROM `{$table}`";
+        $sql  = "SELECT * FROM `{$this->table}`" . $this->joinSql();
         $sql .= $whereClause !== '' ? " WHERE {$whereClause}" : '';
 
         if ($this->orderBys !== []) {
@@ -217,6 +346,16 @@ final class QueryBuilder
     }
 
     /**
+     * Joins accumulated join()/leftJoin() clauses into one SQL fragment.
+     *
+     * @return string
+     */
+    private function joinSql(): string
+    {
+        return $this->joins === [] ? '' : ' ' . implode(' ', $this->joins);
+    }
+
+    /**
      * Builds the WHERE clause string and collects bound values, including
      * the soft-delete filter implied by withTrashed()/onlyTrashed() when the
      * model uses soft deletes.
@@ -229,8 +368,23 @@ final class QueryBuilder
         $params  = [];
 
         foreach ($this->wheres as $where) {
-            $clauses[] = "`{$where['column']}` {$where['operator']} ?";
-            $params[]  = $where['value'];
+            if (isset($where['in'])) {
+                /** @var list<mixed> $values */
+                $values = $where['in'];
+                if ($values === []) {
+                    $clauses[] = $where['not'] ? '1 = 1' : '1 = 0';
+                    continue;
+                }
+                $placeholders = implode(', ', array_fill(0, count($values), '?'));
+                $keyword      = $where['not'] ? 'NOT IN' : 'IN';
+                $clauses[]    = "`{$where['column']}` {$keyword} ({$placeholders})";
+                foreach ($values as $v) {
+                    $params[] = $v;
+                }
+                continue;
+            }
+
+            $clauses[] = $this->renderCondition((string) $where['column'], (string) $where['operator'], $where['value'], $params);
         }
 
         $softDeleteClause = $this->softDeleteClause();
@@ -246,23 +400,45 @@ final class QueryBuilder
     }
 
     /**
+     * Renders one WHERE condition, appending any bound parameter to $params by reference.
+     *
+     * @param  string      $column
+     * @param  string      $operator
+     * @param  mixed       $value
+     * @param  list<mixed> $params
+     * @return string
+     */
+    private function renderCondition(string $column, string $operator, mixed $value, array &$params): string
+    {
+        if ($value instanceof Raw) {
+            return "`{$column}` {$operator} {$value->sql}";
+        }
+
+        if ($value === null) {
+            return $operator === '!=' || $operator === '<>'
+                ? "`{$column}` IS NOT NULL"
+                : "`{$column}` IS NULL";
+        }
+
+        $params[] = $value;
+        return "`{$column}` {$operator} ?";
+    }
+
+    /**
      * Soft-delete SQL fragment implied by the model and withTrashed()/onlyTrashed(), if any.
      *
      * @return string|null
      */
     private function softDeleteClause(): ?string
     {
-        $class = $this->modelClass;
-        if (!$class::usesSoftDeletes()) {
+        if (!$this->softDeletes) {
             return null;
         }
 
-        $column = $class::getDeletedAtColumn();
-
         if ($this->onlyTrashed) {
-            return "`{$column}` IS NOT NULL";
+            return "`{$this->deletedAtColumn}` IS NOT NULL";
         }
 
-        return $this->includeTrashed ? null : "`{$column}` IS NULL";
+        return $this->includeTrashed ? null : "`{$this->deletedAtColumn}` IS NULL";
     }
 }
