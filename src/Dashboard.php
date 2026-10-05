@@ -831,10 +831,12 @@ class Dashboard
      * tables whose schema has not changed — no INFORMATION_SCHEMA queries on
      * the happy path.
      *
-     * 'schema.timestamps'/'schema.soft_deletes' in $config set this app's own
-     * default for every table that doesn't declare its own 'timestamps'/
-     * 'soft_deletes' key — both default to false, unchanged from today's
-     * behavior, unless this app's config opts in.
+     * 'schema_defaults.timestamps'/'schema_defaults.soft_deletes' in $config set
+     * this app's own default for every table that doesn't declare its own
+     * 'timestamps'/'soft_deletes' key — both default to false, unchanged from
+     * today's behavior, unless this app's config opts in. Deliberately a
+     * separate top-level key from 'schema' (reserved for the top-level
+     * standalone-table definitions handled below) to avoid colliding with it.
      *
      * @param ContainerInterface   $container PSR-11 container.
      * @param array<string, mixed> $config    Application config.
@@ -843,8 +845,8 @@ class Dashboard
     {
         $tablePrefix = (string) ($config['table_prefix'] ?? '');
         $builder     = new ModuleSchemaBuilder(
-            (bool) ($config['schema']['timestamps']   ?? false),
-            (bool) ($config['schema']['soft_deletes'] ?? false),
+            (bool) ($config['schema_defaults']['timestamps']   ?? false),
+            (bool) ($config['schema_defaults']['soft_deletes'] ?? false),
         );
 
         $manager = new SchemaStateManager(
