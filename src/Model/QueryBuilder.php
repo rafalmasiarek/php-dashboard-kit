@@ -411,7 +411,9 @@ final class QueryBuilder
     /**
      * Updates every matching row with the given column values in one statement.
      * Does not auto-manage timestamps — include updatedAtColumn in $attributes
-     * if it should be refreshed.
+     * if it should be refreshed. A Raw value is emitted verbatim instead of
+     * bound — e.g. ->update(['attempts' => new Raw('attempts + 1')]) for an
+     * atomic, concurrency-safe increment.
      *
      * @param  array<string, mixed> $attributes
      * @return int Number of rows affected.
@@ -419,11 +421,20 @@ final class QueryBuilder
     public function update(array $attributes): int
     {
         [$whereClause, $whereParams] = $this->buildWhere();
-        $sets = implode(', ', array_map(static fn(string $k) => "`{$k}` = ?", array_keys($attributes)));
+
+        $setParams = [];
+        $sets = implode(', ', array_map(static function (string $k, mixed $v) use (&$setParams): string {
+            if ($v instanceof Raw) {
+                return "`{$k}` = {$v->sql}";
+            }
+            $setParams[] = $v;
+            return "`{$k}` = ?";
+        }, array_keys($attributes), array_values($attributes)));
+
         $sql  = "UPDATE `{$this->table}` SET {$sets}";
         $sql .= $whereClause !== '' ? " WHERE {$whereClause}" : '';
         $stmt = $this->pdo->prepare($sql);
-        $stmt->execute([...array_values($attributes), ...$whereParams]);
+        $stmt->execute([...$setParams, ...$whereParams]);
         return $stmt->rowCount();
     }
 
