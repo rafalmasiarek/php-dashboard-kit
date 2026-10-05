@@ -360,7 +360,7 @@ abstract class Model
         $columnList   = implode(', ', array_map(static fn(string $c) => "`{$c}`", $columns));
         $placeholders = implode(', ', array_fill(0, count($columns), '?'));
 
-        if ($driver === 'sqlite') {
+        if ($driver === 'sqlite' || $driver === 'pgsql') {
             $conflictCols = implode(', ', array_map(static fn(string $c) => "`{$c}`", $uniqueBy));
             $updates      = implode(', ', array_map(static fn(string $c) => "`{$c}` = excluded.`{$c}`", $updateColumns));
             $sql = "INSERT INTO `{$table}` ({$columnList}) VALUES ({$placeholders}) "
@@ -377,8 +377,9 @@ abstract class Model
 
     /**
      * Inserts a row, silently doing nothing if it would violate a unique
-     * constraint (MySQL: INSERT IGNORE; SQLite: INSERT OR IGNORE) — idempotent
-     * insert, not an upsert; an existing row is never modified.
+     * constraint (MySQL: INSERT IGNORE; SQLite: INSERT OR IGNORE; PostgreSQL:
+     * ON CONFLICT DO NOTHING) — idempotent insert, not an upsert; an existing
+     * row is never modified.
      *
      * @param  array<string, mixed> $attributes Column-value pairs to insert.
      * @return bool
@@ -397,9 +398,14 @@ abstract class Model
         $columns      = array_keys($attributes);
         $columnList   = implode(', ', array_map(static fn(string $c) => "`{$c}`", $columns));
         $placeholders = implode(', ', array_fill(0, count($columns), '?'));
-        $verb         = $driver === 'sqlite' ? 'INSERT OR IGNORE' : 'INSERT IGNORE';
 
-        $stmt = static::db()->prepare("{$verb} INTO `{$table}` ({$columnList}) VALUES ({$placeholders})");
+        $sql = match ($driver) {
+            'sqlite' => "INSERT OR IGNORE INTO `{$table}` ({$columnList}) VALUES ({$placeholders})",
+            'pgsql'  => "INSERT INTO `{$table}` ({$columnList}) VALUES ({$placeholders}) ON CONFLICT DO NOTHING",
+            default  => "INSERT IGNORE INTO `{$table}` ({$columnList}) VALUES ({$placeholders})",
+        };
+
+        $stmt = static::db()->prepare($sql);
         return $stmt->execute(array_values($attributes));
     }
 

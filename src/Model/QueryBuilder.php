@@ -252,7 +252,7 @@ final class QueryBuilder
         $columnList   = implode(', ', array_map(static fn(string $c) => "`{$c}`", $columns));
         $placeholders = implode(', ', array_fill(0, count($columns), '?'));
 
-        if ($driver === 'sqlite') {
+        if ($driver === 'sqlite' || $driver === 'pgsql') {
             $conflictCols = implode(', ', array_map(static fn(string $c) => "`{$c}`", $uniqueBy));
             $updates      = implode(', ', array_map(static fn(string $c) => "`{$c}` = excluded.`{$c}`", $updateColumns));
             $sql = "INSERT INTO `{$this->table}` ({$columnList}) VALUES ({$placeholders}) "
@@ -269,8 +269,9 @@ final class QueryBuilder
 
     /**
      * Inserts a row, silently doing nothing if it would violate a unique
-     * constraint (MySQL: INSERT IGNORE; SQLite: INSERT OR IGNORE) — idempotent
-     * insert, not an upsert; an existing row is never modified.
+     * constraint (MySQL: INSERT IGNORE; SQLite: INSERT OR IGNORE; PostgreSQL:
+     * ON CONFLICT DO NOTHING) — idempotent insert, not an upsert; an existing
+     * row is never modified.
      *
      * @param  array<string, mixed> $attributes
      * @return bool
@@ -281,9 +282,14 @@ final class QueryBuilder
         $columns      = array_keys($attributes);
         $columnList   = implode(', ', array_map(static fn(string $c) => "`{$c}`", $columns));
         $placeholders = implode(', ', array_fill(0, count($columns), '?'));
-        $verb         = $driver === 'sqlite' ? 'INSERT OR IGNORE' : 'INSERT IGNORE';
 
-        $stmt = $this->pdo->prepare("{$verb} INTO `{$this->table}` ({$columnList}) VALUES ({$placeholders})");
+        $sql = match ($driver) {
+            'sqlite' => "INSERT OR IGNORE INTO `{$this->table}` ({$columnList}) VALUES ({$placeholders})",
+            'pgsql'  => "INSERT INTO `{$this->table}` ({$columnList}) VALUES ({$placeholders}) ON CONFLICT DO NOTHING",
+            default  => "INSERT IGNORE INTO `{$this->table}` ({$columnList}) VALUES ({$placeholders})",
+        };
+
+        $stmt = $this->pdo->prepare($sql);
         return $stmt->execute(array_values($attributes));
     }
 
