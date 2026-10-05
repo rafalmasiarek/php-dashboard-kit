@@ -20,9 +20,9 @@ use PDO;
 final class QueryBuilder
 {
     /**
-     * WHERE conditions accumulated via where()/whereIn() calls.
+     * WHERE conditions accumulated via where()/whereIn()/whereRaw() calls.
      *
-     * @var list<array{column: string, operator: string, value: mixed}|array{column: string, in: list<mixed>, not: bool}>
+     * @var list<array{column: string, operator: string, value: mixed}|array{column: string, in: list<mixed>, not: bool}|array{raw: string, params: list<mixed>}>
      */
     private array $wheres = [];
 
@@ -164,6 +164,26 @@ final class QueryBuilder
     public function whereNotIn(string $column, array $values): static
     {
         $this->wheres[] = ['column' => $column, 'in' => $values, 'not' => true];
+        return $this;
+    }
+
+    /**
+     * Adds a raw WHERE fragment, ANDed with every other condition — an escape
+     * hatch for boolean logic where() can't express, e.g. an OR branch or an
+     * EXISTS(...) subquery:
+     *   ->whereRaw('(created_by = ? OR EXISTS (SELECT 1 FROM t WHERE t.x = ?))', [$a, $b])
+     *
+     * $sql is emitted verbatim (trusted, not user input) — wrap it in
+     * parentheses yourself when it contains OR, so it combines correctly
+     * with the implicit AND joining every WHERE condition.
+     *
+     * @param  string      $sql    Raw SQL fragment.
+     * @param  list<mixed> $params Bound values for the '?' placeholders in $sql, in order.
+     * @return static
+     */
+    public function whereRaw(string $sql, array $params = []): static
+    {
+        $this->wheres[] = ['raw' => $sql, 'params' => $params];
         return $this;
     }
 
@@ -487,6 +507,14 @@ final class QueryBuilder
         $params  = [];
 
         foreach ($this->wheres as $where) {
+            if (isset($where['raw'])) {
+                $clauses[] = (string) $where['raw'];
+                foreach ((array) $where['params'] as $v) {
+                    $params[] = $v;
+                }
+                continue;
+            }
+
             if (isset($where['in'])) {
                 /** @var list<mixed> $values */
                 $values = $where['in'];
