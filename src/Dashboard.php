@@ -501,6 +501,12 @@ class Dashboard
         // Model::setClock() with the override, since that's resolved eagerly below).
         $container->set(\Psr\Clock\ClockInterface::class, static fn() => new \rafalmasiarek\DashboardKit\Util\SystemClock());
 
+        // Richer clock for code needing more than bare now() (e.g. the scheduler).
+        $container->set(
+            \rafalmasiarek\DashboardKit\Util\ClockInterface::class,
+            static fn() => new \rafalmasiarek\DashboardKit\Util\TimezoneClock(),
+        );
+
         $container->set(QueryCacheDriverInterface::class, static fn(ContainerInterface $c) =>
             new PdoQueryCacheDriver($c->get('pdo.raw'), $c->get(\Psr\Clock\ClockInterface::class))
         );
