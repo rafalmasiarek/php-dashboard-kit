@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.7.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.6.1...v4.7.0) (2026-10-05)
+
+
+### Features
+
+* **clock:** add PSR-20 ClockInterface, remove scattered raw DateTimeImmutable ([#57](https://github.com/rafalmasiarek/php-dashboard-kit/issues/57)) ([6b68154](https://github.com/rafalmasiarek/php-dashboard-kit/commit/6b68154391e761e6834c401e8846fbbaf6a4beff))
+
 ## [4.6.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.6.0...v4.6.1) (2026-10-05)
 
 
