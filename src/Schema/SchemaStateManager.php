@@ -6,7 +6,7 @@ namespace rafalmasiarek\DashboardKit\Schema;
 
 use PDO;
 use Psr\Clock\ClockInterface;
-use rafalmasiarek\DashboardKit\Util\SystemClock;
+use rafalmasiarek\DashboardKit\Utils\SystemClock;
 
 /**
  * Manages module schema lifecycle: creation, column diffing, and state tracking.

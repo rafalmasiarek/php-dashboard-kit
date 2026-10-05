@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace rafalmasiarek\DashboardKit\Util;
+namespace rafalmasiarek\DashboardKit\Utils;
 
 use DateTimeImmutable;
 use Psr\Clock\ClockInterface;
@@ -15,7 +15,7 @@ use Psr\Clock\ClockInterface;
  * Dashboard::create() — the same pattern already used for MailerInterface,
  * RealIpResolver, and GeoIpDriverInterface.
  *
- * @package rafalmasiarek\DashboardKit\Util
+ * @package rafalmasiarek\DashboardKit\Utils
  */
 final class SystemClock implements ClockInterface
 {

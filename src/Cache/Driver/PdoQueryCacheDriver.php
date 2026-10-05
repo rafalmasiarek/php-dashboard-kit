@@ -8,7 +8,7 @@ use DateTimeInterface;
 use PDO;
 use Psr\Clock\ClockInterface;
 use rafalmasiarek\DashboardKit\Cache\QueryCacheDriverInterface;
-use rafalmasiarek\DashboardKit\Util\SystemClock;
+use rafalmasiarek\DashboardKit\Utils\SystemClock;
 
 /**
  * Database-backed tag-based query result cache stored in `_query_cache`.
