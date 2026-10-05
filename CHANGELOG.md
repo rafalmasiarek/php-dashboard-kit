@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.3.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.3.0...v4.3.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **model:** correct PostgreSQL syntax in upsert()/insertOrIgnore() ([#45](https://github.com/rafalmasiarek/php-dashboard-kit/issues/45)) ([2b64688](https://github.com/rafalmasiarek/php-dashboard-kit/commit/2b64688b3bbd3149449bbb5bb874849cc51071ac))
+
 ## [4.3.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.2.0...v4.3.0) (2026-10-05)
 
 
