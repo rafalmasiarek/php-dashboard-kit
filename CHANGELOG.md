@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.0.1...v4.1.0) (2026-10-05)
+
+
+### Features
+
+* **model:** add upsert, bulk update/delete, joins, raw expressions, dynamic tables ([#37](https://github.com/rafalmasiarek/php-dashboard-kit/issues/37)) ([fc141b2](https://github.com/rafalmasiarek/php-dashboard-kit/commit/fc141b2bff03a11c01603be52bc261dca67ceb1f))
+
 ## [4.0.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.0.0...v4.0.1) (2026-10-04)
 
 
