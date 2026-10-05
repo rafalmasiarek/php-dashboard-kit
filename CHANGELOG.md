@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.6.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.6.0...v4.6.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **schema:** move timestamps/soft_deletes defaults to a separate config key ([#54](https://github.com/rafalmasiarek/php-dashboard-kit/issues/54)) ([4bba194](https://github.com/rafalmasiarek/php-dashboard-kit/commit/4bba194c87599649e393190f73546d6589150c44))
+
 ## [4.6.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.5.0...v4.6.0) (2026-10-05)
 
 
