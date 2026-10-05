@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.2.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.1.1...v4.2.0) (2026-10-05)
+
+
+### Features
+
+* **model:** add QueryBuilder::select() for explicit column lists ([#41](https://github.com/rafalmasiarek/php-dashboard-kit/issues/41)) ([b5d2b5d](https://github.com/rafalmasiarek/php-dashboard-kit/commit/b5d2b5db1157efe5acdc60ff6175f6ebc4ab0ec1))
+
 ## [4.1.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.1.0...v4.1.1) (2026-10-05)
 
 
