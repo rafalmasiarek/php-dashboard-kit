@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.5.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.4.0...v4.5.0) (2026-10-05)
+
+
+### Features
+
+* **model:** add whereRaw() escape hatch for OR/subquery conditions ([#49](https://github.com/rafalmasiarek/php-dashboard-kit/issues/49)) ([48f0eee](https://github.com/rafalmasiarek/php-dashboard-kit/commit/48f0eee0ce8875b8bb6f7a8dd2971a0f42081843))
+
 ## [4.4.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.3.1...v4.4.0) (2026-10-05)
 
 
