@@ -232,6 +232,38 @@ final class QueryBuilder
     }
 
     /**
+     * Adds an INNER JOIN with an arbitrary raw ON clause — for a multi-column
+     * condition join() can't express in one (first, operator, second) triple:
+     *   ->joinOn('esign_guest_invites', 'esign_guest_invites.envelope_id = esign_signers.envelope_id '
+     *       . 'AND esign_guest_invites.signer_id = esign_signers.signer_id')
+     *
+     * $onSql is emitted verbatim (trusted, not user input) — it compares columns
+     * to columns, not to bound values; put value comparisons in where()/whereRaw() instead.
+     *
+     * @param  string $table Table to join (trusted, not user input).
+     * @param  string $onSql Raw ON clause (trusted, not user input).
+     * @return static
+     */
+    public function joinOn(string $table, string $onSql): static
+    {
+        $this->joins[] = "INNER JOIN `{$table}` ON {$onSql}";
+        return $this;
+    }
+
+    /**
+     * Adds a LEFT JOIN with an arbitrary raw ON clause — see joinOn().
+     *
+     * @param  string $table Table to join (trusted, not user input).
+     * @param  string $onSql Raw ON clause (trusted, not user input).
+     * @return static
+     */
+    public function leftJoinOn(string $table, string $onSql): static
+    {
+        $this->joins[] = "LEFT JOIN `{$table}` ON {$onSql}";
+        return $this;
+    }
+
+    /**
      * Inserts a row into this builder's table. The only way to insert when
      * built from Model::on() — there is no model class to construct and save().
      * Ignores any accumulated WHERE/JOIN/etc.; those only apply to get()/
@@ -395,6 +427,67 @@ final class QueryBuilder
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return (int) $stmt->fetchColumn();
+    }
+
+    /**
+     * Returns the maximum value of $column across matching rows, or null when
+     * no row matches (SQL MAX() of an empty set).
+     *
+     * @param  string $column Column name (trusted, not user input).
+     * @return int|float|string|null
+     */
+    public function max(string $column): int|float|string|null
+    {
+        return $this->aggregate('MAX', $column);
+    }
+
+    /**
+     * Returns the minimum value of $column across matching rows, or null when
+     * no row matches (SQL MIN() of an empty set).
+     *
+     * @param  string $column Column name (trusted, not user input).
+     * @return int|float|string|null
+     */
+    public function min(string $column): int|float|string|null
+    {
+        return $this->aggregate('MIN', $column);
+    }
+
+    /**
+     * Returns the sum of $column across matching rows. SQL SUM() of an empty
+     * set is NULL; normalized to 0 since a caller asking for a sum virtually
+     * always wants a number, not a null check.
+     *
+     * @param  string $column Column name (trusted, not user input).
+     * @return int|float
+     */
+    public function sum(string $column): int|float
+    {
+        $result = $this->aggregate('SUM', $column);
+        return $result ?? 0;
+    }
+
+    /**
+     * Runs a single-column SQL aggregate (MAX/MIN/SUM) over matching rows.
+     *
+     * @param  string $fn     Aggregate function name — caller-controlled constant, not user input.
+     * @param  string $column Column name (trusted, not user input).
+     * @return int|float|string|null
+     */
+    private function aggregate(string $fn, string $column): int|float|string|null
+    {
+        [$whereClause, $params] = $this->buildWhere();
+        $sql  = "SELECT {$fn}(`{$column}`) FROM `{$this->table}`" . $this->joinSql();
+        $sql .= $whereClause !== '' ? " WHERE {$whereClause}" : '';
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $value = $stmt->fetchColumn();
+
+        if ($value === null || $value === false) {
+            return null;
+        }
+
+        return is_numeric($value) ? (str_contains((string) $value, '.') ? (float) $value : (int) $value) : $value;
     }
 
     /**
