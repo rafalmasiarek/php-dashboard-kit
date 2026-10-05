@@ -230,6 +230,64 @@ final class QueryBuilder
     }
 
     /**
+     * Inserts a row, or updates it in one atomic statement when a row already
+     * matches $uniqueBy (MySQL: ON DUPLICATE KEY UPDATE; SQLite: ON CONFLICT
+     * DO UPDATE) — safe under concurrent writers, unlike a SELECT-then-branch.
+     * Unlike Model::upsert(), does not auto-manage timestamps — this is the
+     * ad-hoc-table path, which has no createdAtColumn/updatedAtColumn to know about.
+     *
+     * @param  array<string, mixed> $attributes
+     * @param  list<string>         $uniqueBy      Columns identifying an existing row (unique/PK).
+     * @param  list<string>|null    $updateColumns Columns to refresh on conflict. Defaults to
+     *                                              every column except $uniqueBy.
+     * @return bool
+     */
+    public function upsert(array $attributes, array $uniqueBy, ?array $updateColumns = null): bool
+    {
+        $driver = (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
+        $columns       = array_keys($attributes);
+        $updateColumns ??= array_values(array_diff($columns, $uniqueBy));
+
+        $columnList   = implode(', ', array_map(static fn(string $c) => "`{$c}`", $columns));
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+
+        if ($driver === 'sqlite') {
+            $conflictCols = implode(', ', array_map(static fn(string $c) => "`{$c}`", $uniqueBy));
+            $updates      = implode(', ', array_map(static fn(string $c) => "`{$c}` = excluded.`{$c}`", $updateColumns));
+            $sql = "INSERT INTO `{$this->table}` ({$columnList}) VALUES ({$placeholders}) "
+                . "ON CONFLICT({$conflictCols}) DO UPDATE SET {$updates}";
+        } else {
+            $updates = implode(', ', array_map(static fn(string $c) => "`{$c}` = VALUES(`{$c}`)", $updateColumns));
+            $sql = "INSERT INTO `{$this->table}` ({$columnList}) VALUES ({$placeholders}) "
+                . "ON DUPLICATE KEY UPDATE {$updates}";
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute(array_values($attributes));
+    }
+
+    /**
+     * Inserts a row, silently doing nothing if it would violate a unique
+     * constraint (MySQL: INSERT IGNORE; SQLite: INSERT OR IGNORE) — idempotent
+     * insert, not an upsert; an existing row is never modified.
+     *
+     * @param  array<string, mixed> $attributes
+     * @return bool
+     */
+    public function insertOrIgnore(array $attributes): bool
+    {
+        $driver       = (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $columns      = array_keys($attributes);
+        $columnList   = implode(', ', array_map(static fn(string $c) => "`{$c}`", $columns));
+        $placeholders = implode(', ', array_fill(0, count($columns), '?'));
+        $verb         = $driver === 'sqlite' ? 'INSERT OR IGNORE' : 'INSERT IGNORE';
+
+        $stmt = $this->pdo->prepare("{$verb} INTO `{$this->table}` ({$columnList}) VALUES ({$placeholders})");
+        return $stmt->execute(array_values($attributes));
+    }
+
+    /**
      * Sets the maximum number of rows to return.
      *
      * @param  int $limit
