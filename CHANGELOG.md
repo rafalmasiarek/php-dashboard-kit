@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.4.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.3.1...v4.4.0) (2026-10-05)
+
+
+### Features
+
+* **model:** support Raw values in QueryBuilder::update() ([#47](https://github.com/rafalmasiarek/php-dashboard-kit/issues/47)) ([c3e4710](https://github.com/rafalmasiarek/php-dashboard-kit/commit/c3e47101324e98298ac0e97474d43655a0e4d859))
+
 ## [4.3.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.3.0...v4.3.1) (2026-10-05)
 
 
