@@ -1,5 +1,12 @@
 # Changelog
 
+## [4.1.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.1.0...v4.1.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* **model:** add QueryBuilder::insert() for Model::on() tables ([#39](https://github.com/rafalmasiarek/php-dashboard-kit/issues/39)) ([e17d1bf](https://github.com/rafalmasiarek/php-dashboard-kit/commit/e17d1bfe75876ed4103775544f2569c722c1280c))
+
 ## [4.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.0.1...v4.1.0) (2026-10-05)
 
 
