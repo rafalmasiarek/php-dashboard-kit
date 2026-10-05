@@ -10,7 +10,9 @@ use PDO;
  * Manages module schema lifecycle: creation, column diffing, and state tracking.
  *
  * On every boot, SchemaStateManager compares a hash of each table's declared
- * schema against the hash stored in `_schema_state`. Tables whose hash has not
+ * schema (folded together with the injected ModuleSchemaBuilder's own default
+ * flags, so a config-level default change invalidates every table that relies
+ * on it) against the hash stored in `_schema_state`. Tables whose hash has not
  * changed are skipped entirely — no INFORMATION_SCHEMA queries, no ALTER TABLE.
  * Only tables with a changed or missing hash go through the full sync cycle:
  *
@@ -62,8 +64,12 @@ final class SchemaStateManager
 
         $stored = $this->loadStoredHashes(array_keys($tables));
 
+        $buildDefaultsFingerprint = ((int) $this->builder->defaultTimestamps) . ((int) $this->builder->defaultSoftDeletes);
+
         foreach ($tables as $tableName => ['definition' => $definition, 'module' => $module]) {
-            $hash = md5(serialize($definition));
+            // Builder defaults folded in — otherwise a config-only default change is
+            // invisible to serialize($definition) and the ALTER cycle below never fires.
+            $hash = md5(serialize($definition) . '|' . $buildDefaultsFingerprint);
 
             if (($stored[$tableName] ?? null) === $hash) {
                 continue;
@@ -78,12 +84,39 @@ final class SchemaStateManager
 
             foreach ($declared as $colName => $colDdl) {
                 if (!in_array($colName, $actual, true)) {
-                    $this->pdo->exec("ALTER TABLE `{$tableName}` ADD COLUMN {$colDdl}");
+                    $this->pdo->exec("ALTER TABLE `{$tableName}` ADD COLUMN " . $this->forAlter($colDdl, $driver));
                 }
             }
 
             $this->upsertState($tableName, $module, $hash, count($declared), $driver);
         }
+    }
+
+    /**
+     * Adapts a column DDL fragment for use in ALTER TABLE ADD COLUMN.
+     *
+     * SQLite rejects a non-constant default (CURRENT_TIMESTAMP included) on
+     * ADD COLUMN, even though the exact same default is accepted on CREATE
+     * TABLE — "Cannot add a column with non-constant default". Substituted
+     * with a literal snapshot of now, so the backfill succeeds; the column's
+     * default for any future INSERT on SQLite is this same frozen literal, a
+     * known, narrower version of the "no ON UPDATE equivalent on SQLite"
+     * limitation already documented on ModuleSchemaBuilder. MySQL accepts
+     * CURRENT_TIMESTAMP on ADD COLUMN natively and is left untouched.
+     *
+     * @param  string $colDdl Column DDL fragment from declaredColumns().
+     * @param  string $driver PDO driver name.
+     * @return string
+     */
+    private function forAlter(string $colDdl, string $driver): string
+    {
+        if ($driver !== 'sqlite') {
+            return $colDdl;
+        }
+
+        $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+
+        return str_replace('DEFAULT CURRENT_TIMESTAMP', "DEFAULT '{$now}'", $colDdl);
     }
 
     /**
