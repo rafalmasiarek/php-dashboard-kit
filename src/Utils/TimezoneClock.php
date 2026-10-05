@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace rafalmasiarek\DashboardKit\Util;
+namespace rafalmasiarek\DashboardKit\Utils;
 
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -12,7 +12,7 @@ use DateTimeZone;
  * Default implementation of the richer ClockInterface — defers entirely to
  * PHP's own default timezone, no configuration of its own.
  *
- * @package rafalmasiarek\DashboardKit\Util
+ * @package rafalmasiarek\DashboardKit\Utils
  */
 final class TimezoneClock implements ClockInterface
 {

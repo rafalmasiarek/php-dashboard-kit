@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace rafalmasiarek\DashboardKit\Util;
+namespace rafalmasiarek\DashboardKit\Utils;
 
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -12,7 +12,7 @@ use Psr\Clock\ClockInterface as PsrClockInterface;
 /**
  * Timezone-aware clock contract, extending PSR-20 with formatting/timezone helpers.
  *
- * @package rafalmasiarek\DashboardKit\Util
+ * @package rafalmasiarek\DashboardKit\Utils
  */
 interface ClockInterface extends PsrClockInterface
 {

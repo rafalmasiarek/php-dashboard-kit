@@ -500,12 +500,12 @@ class Dashboard
         // Default clock — plain system time. An app with its own timezone-aware
         // clock overrides this binding after Dashboard::create() (and re-calls
         // Model::setClock() with the override, since that's resolved eagerly below).
-        $container->set(\Psr\Clock\ClockInterface::class, static fn() => new \rafalmasiarek\DashboardKit\Util\SystemClock());
+        $container->set(\Psr\Clock\ClockInterface::class, static fn() => new \rafalmasiarek\DashboardKit\Utils\SystemClock());
 
         // Richer clock for code needing more than bare now() (e.g. the scheduler).
         $container->set(
-            \rafalmasiarek\DashboardKit\Util\ClockInterface::class,
-            static fn() => new \rafalmasiarek\DashboardKit\Util\TimezoneClock(),
+            \rafalmasiarek\DashboardKit\Utils\ClockInterface::class,
+            static fn() => new \rafalmasiarek\DashboardKit\Utils\TimezoneClock(),
         );
 
         $container->set(QueryCacheDriverInterface::class, static fn(ContainerInterface $c) =>

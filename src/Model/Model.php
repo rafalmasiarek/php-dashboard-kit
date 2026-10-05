@@ -7,7 +7,7 @@ namespace rafalmasiarek\DashboardKit\Model;
 use DateTimeImmutable;
 use PDO;
 use Psr\Clock\ClockInterface;
-use rafalmasiarek\DashboardKit\Util\SystemClock;
+use rafalmasiarek\DashboardKit\Utils\SystemClock;
 
 /**
  * Abstract base class for all application database models.
