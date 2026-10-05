@@ -168,6 +168,7 @@ class Dashboard
         $container = self::buildContainer($rootDir, $config, $isDev);
 
         Model::setConnectionResolver(static fn() => $container->get(PDO::class));
+        Model::setClock($container->get(\Psr\Clock\ClockInterface::class));
 
         SecretRegistry::primeFromConfig($config);
         SecretRegistry::primeFromEnv();
@@ -495,8 +496,13 @@ class Dashboard
         // Bypasses CachingPdo to avoid a circular dependency during container resolution.
         $container->set('pdo.raw', static fn() => new PDO($pdoDsn, $pdoUser, $pdoPass, $pdoOpts));
 
+        // Default clock — plain system time. An app with its own timezone-aware
+        // clock overrides this binding after Dashboard::create() (and re-calls
+        // Model::setClock() with the override, since that's resolved eagerly below).
+        $container->set(\Psr\Clock\ClockInterface::class, static fn() => new \rafalmasiarek\DashboardKit\Util\SystemClock());
+
         $container->set(QueryCacheDriverInterface::class, static fn(ContainerInterface $c) =>
-            new PdoQueryCacheDriver($c->get('pdo.raw'))
+            new PdoQueryCacheDriver($c->get('pdo.raw'), $c->get(\Psr\Clock\ClockInterface::class))
         );
 
         $tablePrefix = (string) ($config['table_prefix'] ?? '');
@@ -854,6 +860,7 @@ class Dashboard
             $builder,
             new SchemaInspector(),
             $tablePrefix,
+            $container->get(\Psr\Clock\ClockInterface::class),
         );
 
         $modules = [];
@@ -885,7 +892,7 @@ class Dashboard
                         }
                     }
 
-                    (new SchemaStateManager($pdo, $builder, new SchemaInspector()))
+                    (new SchemaStateManager($pdo, $builder, new SchemaInspector(), clock: $container->get(\Psr\Clock\ClockInterface::class)))
                         ->sync([(string) $slug => ['schema' => (array) ($entry['schema'] ?? [])]]);
                     $key = (string) ($entry['key'] ?? $slug . '.sqlite');
                     $container->set($key, static fn() => $pdo);
