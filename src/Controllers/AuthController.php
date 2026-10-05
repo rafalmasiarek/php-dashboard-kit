@@ -225,7 +225,7 @@ class AuthController
     }
 
     /**
-     * Generates an activation token, stores it, and sends the activation email with tracking pixel.
+     * Generates an activation token, stores it, and sends the activation email.
      *
      * When the mailer is not configured, only the token is stored; no email is sent.
      *
@@ -246,19 +246,13 @@ class AuthController
             return;
         }
 
-        $trackToken = bin2hex(random_bytes(16));
-
-        $this->db->prepare('INSERT INTO mail_tracking (token, to_email, mail_type) VALUES (?, ?, ?)')
-           ->execute([$trackToken, $user->getEmail(), 'activation']);
-
         $base = $this->baseUrl($request);
 
         $this->mailer->send(
             MailMessage::to($user->getEmail())
                 ->subject('Activate your account')
                 ->template('emails/activation.twig', [
-                    'activation_link'    => $base . '/activate/' . $token,
-                    'tracking_pixel_url' => $base . '/mail/track/' . $trackToken,
+                    'activation_link' => $base . '/activate/' . $token,
                 ])
         );
     }

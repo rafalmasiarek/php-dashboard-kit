@@ -125,7 +125,7 @@ class Dashboard
      *   registration         (bool)   When true, registers the /register route. Default: false.
      *   password_reset       (bool)   When true, registers /forgot-password and /reset-password routes. Default: false.
      *   require_activation   (bool)     When true, new registrations require email activation before login is allowed.
-     *                                   Wires /activate/{token}, /mail/track/{token}, login check, and activation email
+     *                                   Wires /activate/{token}, login check, and activation email
      *                                   (requires mailer to be configured). Default: false.
      *   before_login         (callable) Called before credentials are checked on POST /login.
      *                                   Signature: (ServerRequestInterface): ?string
@@ -1020,32 +1020,6 @@ class Dashboard
 
                     $flash->add('success', 'Your account has been activated. You can now log in.');
                     return $res->withHeader('Location', $dashboardUrlPrefix . '/login')->withStatus(302);
-                });
-
-                $dash->get('/mail/track/{token}', function ($req, $res, $args) use ($container) {
-                    $db = $container->get(PDO::class);
-                    $ip = $container->get(RealIpResolver::class)->getIp() ?: 'unknown';
-
-                    $stmt = $db->prepare(
-                        'SELECT id, to_email, mail_type FROM mail_tracking WHERE token = ? AND opened_at IS NULL'
-                    );
-                    $stmt->execute([$args['token']]);
-                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-                    if ($row) {
-                        $db->prepare('UPDATE mail_tracking SET opened_at = NOW(), open_ip = ? WHERE id = ?')
-                           ->execute([$ip, $row['id']]);
-                        $container->get(AuditLog::class)->mailOpen($row['to_email'], $row['mail_type']);
-                    }
-
-                    $res->getBody()->write(
-                        base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
-                    );
-
-                    return $res
-                        ->withHeader('Content-Type', 'image/gif')
-                        ->withHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
-                        ->withHeader('Pragma', 'no-cache');
                 });
             }
 
