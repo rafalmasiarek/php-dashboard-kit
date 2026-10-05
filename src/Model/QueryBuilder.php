@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace rafalmasiarek\DashboardKit\Model;
 
-use DateTimeImmutable;
 use PDO;
+use Psr\Clock\ClockInterface;
 
 /**
  * Fluent SELECT query builder for a model class or an ad-hoc table.
@@ -73,18 +73,20 @@ final class QueryBuilder
     private bool $onlyTrashed = false;
 
     /**
-     * @param string|null $modelClass     Fully-qualified model class, or null for an ad-hoc
-     *                                     table (Model::on()) — rows are returned as plain
-     *                                     arrays instead of model instances when null.
-     * @param string      $table          Table name.
-     * @param PDO         $pdo            Active database connection.
-     * @param bool        $softDeletes    Whether to filter deleted_at automatically.
-     * @param string      $deletedAtColumn Column soft-deletes are written to.
+     * @param string|null    $modelClass     Fully-qualified model class, or null for an ad-hoc
+     *                                        table (Model::on()) — rows are returned as plain
+     *                                        arrays instead of model instances when null.
+     * @param string         $table          Table name.
+     * @param PDO            $pdo            Active database connection.
+     * @param ClockInterface $clock          Clock used for soft-delete's deleted_at timestamp.
+     * @param bool           $softDeletes    Whether to filter deleted_at automatically.
+     * @param string         $deletedAtColumn Column soft-deletes are written to.
      */
     public function __construct(
         private readonly ?string $modelClass,
         private readonly string $table,
         private readonly PDO $pdo,
+        private readonly ClockInterface $clock,
         private readonly bool $softDeletes = false,
         private readonly string $deletedAtColumn = 'deleted_at',
     ) {}
@@ -500,7 +502,7 @@ final class QueryBuilder
     public function delete(): int
     {
         if ($this->softDeletes && !$this->onlyTrashed) {
-            return $this->update([$this->deletedAtColumn => (new DateTimeImmutable())->format('Y-m-d H:i:s')]);
+            return $this->update([$this->deletedAtColumn => $this->clock->now()->format('Y-m-d H:i:s')]);
         }
 
         return $this->forceDelete();

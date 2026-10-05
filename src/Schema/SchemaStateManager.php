@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace rafalmasiarek\DashboardKit\Schema;
 
 use PDO;
+use Psr\Clock\ClockInterface;
+use rafalmasiarek\DashboardKit\Util\SystemClock;
 
 /**
  * Manages module schema lifecycle: creation, column diffing, and state tracking.
@@ -29,18 +31,21 @@ use PDO;
 final class SchemaStateManager
 {
     /**
-     * @param PDO                $pdo         Active database connection.
+     * @param PDO                 $pdo         Active database connection.
      * @param ModuleSchemaBuilder $builder     Builds DDL statements from declarative arrays.
-     * @param SchemaInspector    $inspector   Reads actual column lists from the live schema.
-     * @param string             $tablePrefix Optional prefix applied to every module table name.
-     *                                        System tables (_schema_state, _table_version, _query_cache)
-     *                                        are never prefixed.
+     * @param SchemaInspector     $inspector   Reads actual column lists from the live schema.
+     * @param string              $tablePrefix Optional prefix applied to every module table name.
+     *                                         System tables (_schema_state, _table_version, _query_cache)
+     *                                         are never prefixed.
+     * @param ClockInterface|null $clock       Clock for the SQLite ALTER-backfill literal below.
+     *                                         Defaults to SystemClock.
      */
     public function __construct(
         private readonly PDO                 $pdo,
         private readonly ModuleSchemaBuilder $builder,
         private readonly SchemaInspector     $inspector,
         private readonly string              $tablePrefix = '',
+        private readonly ?ClockInterface      $clock = null,
     ) {
     }
 
@@ -114,7 +119,7 @@ final class SchemaStateManager
             return $colDdl;
         }
 
-        $now = (new \DateTimeImmutable())->format('Y-m-d H:i:s');
+        $now = ($this->clock ?? new SystemClock())->now()->format('Y-m-d H:i:s');
 
         return str_replace('DEFAULT CURRENT_TIMESTAMP', "DEFAULT '{$now}'", $colDdl);
     }

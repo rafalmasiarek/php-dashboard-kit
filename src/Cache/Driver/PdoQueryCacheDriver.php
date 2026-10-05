@@ -4,10 +4,11 @@ declare(strict_types=1);
 
 namespace rafalmasiarek\DashboardKit\Cache\Driver;
 
-use DateTimeImmutable;
 use DateTimeInterface;
 use PDO;
+use Psr\Clock\ClockInterface;
 use rafalmasiarek\DashboardKit\Cache\QueryCacheDriverInterface;
+use rafalmasiarek\DashboardKit\Util\SystemClock;
 
 /**
  * Database-backed tag-based query result cache stored in `_query_cache`.
@@ -33,10 +34,13 @@ final class PdoQueryCacheDriver implements QueryCacheDriverInterface
     private string $driver;
 
     /**
-     * @param PDO $pdo Raw database connection. Must not be a CachingPdo instance.
+     * @param PDO                 $pdo   Raw database connection. Must not be a CachingPdo instance.
+     * @param ClockInterface|null $clock Clock for cached_at/expires_at metadata. Defaults to SystemClock.
      */
-    public function __construct(private readonly PDO $pdo)
-    {
+    public function __construct(
+        private readonly PDO $pdo,
+        private readonly ?ClockInterface $clock = null,
+    ) {
         $this->driver = (string) $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
         $this->ensureTable();
     }
@@ -82,7 +86,7 @@ final class PdoQueryCacheDriver implements QueryCacheDriverInterface
      */
     public function set(string $key, array $rows, int $ttl, string ...$tags): void
     {
-        $now       = new DateTimeImmutable();
+        $now       = ($this->clock ?? new SystemClock())->now();
         $expiresAt = $now->modify("+{$ttl} seconds");
 
         $payload = json_encode([

@@ -6,6 +6,8 @@ namespace rafalmasiarek\DashboardKit\Model;
 
 use DateTimeImmutable;
 use PDO;
+use Psr\Clock\ClockInterface;
+use rafalmasiarek\DashboardKit\Util\SystemClock;
 
 /**
  * Abstract base class for all application database models.
@@ -103,6 +105,15 @@ abstract class Model
     private static ?PDO $resolved = null;
 
     /**
+     * Clock used for created_at/updated_at and any other "now" computed by
+     * Model/QueryBuilder. Defaults to SystemClock (plain system time) until
+     * an app calls setClock() — e.g. to wire in its own timezone-aware clock.
+     *
+     * @var ClockInterface|null
+     */
+    private static ?ClockInterface $clock = null;
+
+    /**
      * Raw attribute values as returned by the database driver.
      *
      * @var array<string, mixed>
@@ -130,6 +141,31 @@ abstract class Model
     {
         static::$connectionResolver = $resolver;
         static::$resolved           = null;
+    }
+
+    /**
+     * Registers the clock used by Model/QueryBuilder for "now" — e.g. an
+     * app's own timezone-aware clock, overriding the plain-system-time default.
+     *
+     * @param  ClockInterface $clock
+     * @return void
+     */
+    public static function setClock(ClockInterface $clock): void
+    {
+        static::$clock = $clock;
+    }
+
+    /**
+     * Returns the active clock, defaulting to SystemClock when setClock()
+     * was never called. Public so code outside the Model hierarchy (e.g. an
+     * addon repository with no DI of its own) can read "now" from the same
+     * single source as Model/QueryBuilder.
+     *
+     * @return ClockInterface
+     */
+    public static function getClock(): ClockInterface
+    {
+        return static::$clock ??= new SystemClock();
     }
 
     /**
@@ -268,7 +304,7 @@ abstract class Model
      */
     protected static function newQuery(): QueryBuilder
     {
-        return new QueryBuilder(static::class, static::$table, static::db(), static::$softDeletes, static::$deletedAtColumn);
+        return new QueryBuilder(static::class, static::$table, static::db(), static::getClock(), static::$softDeletes, static::$deletedAtColumn);
     }
 
     /**
@@ -282,7 +318,7 @@ abstract class Model
      */
     public static function on(string $table): QueryBuilder
     {
-        return new QueryBuilder(null, $table, static::db());
+        return new QueryBuilder(null, $table, static::db(), static::getClock());
     }
 
     /**
@@ -429,7 +465,7 @@ abstract class Model
      */
     protected static function now(): string
     {
-        return (new DateTimeImmutable())->format('Y-m-d H:i:s');
+        return static::getClock()->now()->format('Y-m-d H:i:s');
     }
 
     /**
@@ -713,7 +749,7 @@ abstract class Model
      */
     protected static function trashedOlderThan(string $interval): QueryBuilder
     {
-        $threshold = (new DateTimeImmutable())->modify($interval)->format('Y-m-d H:i:s');
+        $threshold = static::getClock()->now()->modify($interval)->format('Y-m-d H:i:s');
         return static::onlyTrashed()->where(static::$deletedAtColumn, '<', $threshold);
     }
 
