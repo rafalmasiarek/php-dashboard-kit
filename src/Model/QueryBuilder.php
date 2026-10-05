@@ -187,6 +187,24 @@ final class QueryBuilder
     }
 
     /**
+     * Inserts a row into this builder's table. The only way to insert when
+     * built from Model::on() — there is no model class to construct and save().
+     * Ignores any accumulated WHERE/JOIN/etc.; those only apply to get()/
+     * first()/count()/update()/delete().
+     *
+     * @param  array<string, mixed> $attributes
+     * @return string Last-insert-id, or '' if the driver reports none.
+     */
+    public function insert(array $attributes): string
+    {
+        $columns      = implode(', ', array_map(static fn(string $k) => "`{$k}`", array_keys($attributes)));
+        $placeholders = implode(', ', array_fill(0, count($attributes), '?'));
+        $stmt = $this->pdo->prepare("INSERT INTO `{$this->table}` ({$columns}) VALUES ({$placeholders})");
+        $stmt->execute(array_values($attributes));
+        return $this->pdo->lastInsertId();
+    }
+
+    /**
      * Sets the maximum number of rows to return.
      *
      * @param  int $limit
