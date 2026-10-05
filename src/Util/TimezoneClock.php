@@ -7,57 +7,21 @@ namespace rafalmasiarek\DashboardKit\Util;
 use DateTimeImmutable;
 use DateTimeInterface;
 use DateTimeZone;
-use Throwable;
 
 /**
- * Default implementation of the richer ClockInterface.
- *
- * Timezone resolution order:
- *  1) $configuredTzId (constructor argument)
- *  2) PHP default timezone (php.ini / date_default_timezone_set)
- *  3) $fallbackTzId (default: UTC)
+ * Default implementation of the richer ClockInterface — defers entirely to
+ * PHP's own default timezone, no configuration of its own.
  *
  * @package rafalmasiarek\DashboardKit\Util
  */
 final class TimezoneClock implements ClockInterface
 {
-    /** @var string */
-    private string $configuredTzId;
-
-    /** @var string */
-    private string $fallbackTzId;
-
-    /** @var array<string, DateTimeZone> */
-    private array $cache = [];
-
-    /**
-     * @param string $configuredTzId Timezone identifier to prefer (e.g. 'Europe/Warsaw').
-     * @param string $fallbackTzId   Fallback when configured and PHP defaults are invalid.
-     */
-    public function __construct(string $configuredTzId = '', string $fallbackTzId = 'UTC')
-    {
-        $this->configuredTzId = trim($configuredTzId);
-        $this->fallbackTzId   = trim($fallbackTzId) !== '' ? trim($fallbackTzId) : 'UTC';
-    }
-
     /**
      * {@inheritdoc}
      */
     public function tzId(): string
     {
-        foreach ([$this->configuredTzId, (string) date_default_timezone_get(), $this->fallbackTzId] as $id) {
-            $id = trim($id);
-            if ($id === '') {
-                continue;
-            }
-            try {
-                new DateTimeZone($id);
-                return $id;
-            } catch (Throwable) {
-                // try next candidate
-            }
-        }
-        return 'UTC';
+        return date_default_timezone_get();
     }
 
     /**
@@ -65,8 +29,7 @@ final class TimezoneClock implements ClockInterface
      */
     public function tz(): DateTimeZone
     {
-        $id = $this->tzId();
-        return $this->cache[$id] ??= new DateTimeZone($id);
+        return new DateTimeZone($this->tzId());
     }
 
     /**
@@ -82,7 +45,7 @@ final class TimezoneClock implements ClockInterface
      */
     public function nowUtc(): DateTimeImmutable
     {
-        return $this->now()->setTimezone($this->utcTz());
+        return $this->now()->setTimezone(new DateTimeZone('UTC'));
     }
 
     /**
@@ -106,7 +69,7 @@ final class TimezoneClock implements ClockInterface
      */
     public function formatAtomFromTimestamp(int $ts): string
     {
-        return $this->at('@' . $ts)->setTimezone($this->tz())->format(DATE_ATOM);
+        return $this->at('@' . $ts)->format(DATE_ATOM);
     }
 
     /**
@@ -114,7 +77,7 @@ final class TimezoneClock implements ClockInterface
      */
     public function formatAtom(DateTimeInterface $dt): string
     {
-        return $this->fromInterface($dt)->setTimezone($this->tz())->format(DATE_ATOM);
+        return $this->fromInterface($dt)->format(DATE_ATOM);
     }
 
     /**
@@ -122,7 +85,7 @@ final class TimezoneClock implements ClockInterface
      */
     public function formatSqlUtc(DateTimeInterface $dt): string
     {
-        return $this->fromInterface($dt)->setTimezone($this->utcTz())->format('Y-m-d H:i:s');
+        return $this->fromInterface($dt)->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
     }
 
     /**
@@ -130,7 +93,7 @@ final class TimezoneClock implements ClockInterface
      */
     public function formatMinuteKey(DateTimeInterface $dt): string
     {
-        return $this->fromInterface($dt)->setTimezone($this->tz())->format('YmdHi');
+        return $this->fromInterface($dt)->format('YmdHi');
     }
 
     /**
@@ -139,15 +102,5 @@ final class TimezoneClock implements ClockInterface
     public function formatMinuteKeyFromTimestamp(int $ts): string
     {
         return $this->formatMinuteKey($this->at('@' . $ts));
-    }
-
-    /**
-     * Returns the cached UTC timezone instance.
-     *
-     * @return DateTimeZone
-     */
-    private function utcTz(): DateTimeZone
-    {
-        return $this->cache['UTC'] ??= new DateTimeZone('UTC');
     }
 }
