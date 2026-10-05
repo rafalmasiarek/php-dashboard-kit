@@ -1,5 +1,21 @@
 # Changelog
 
+## [5.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.8.0...v5.0.0) (2026-10-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **clock:** rafalmasiarek\DashboardKit\Util\ClockInterface, SystemClock, and TimezoneClock are now under rafalmasiarek\DashboardKit\Utils\.
+
+### Features
+
+* **mail:** MailerInterface + generic email extension point ([#56](https://github.com/rafalmasiarek/php-dashboard-kit/issues/56)) ([1504cd7](https://github.com/rafalmasiarek/php-dashboard-kit/commit/1504cd71a3b16c024d77bdbe276dd1fadc09a6cf))
+
+
+### Bug Fixes
+
+* **clock:** move Clock classes from Util to Utils namespace ([#63](https://github.com/rafalmasiarek/php-dashboard-kit/issues/63)) ([84a7c8e](https://github.com/rafalmasiarek/php-dashboard-kit/commit/84a7c8ec47b890c0c7ff713b9ccff687ac407a5f))
+
 ## [4.8.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.7.0...v4.8.0) (2026-10-05)
 
 
