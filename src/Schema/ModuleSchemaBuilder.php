@@ -15,19 +15,24 @@ use PDO;
  * System columns injected automatically (unless already defined by the user):
  *   id         — CHAR(36) NOT NULL, PRIMARY KEY (UUID v4, application-generated)
  *   created_at — DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+ *   updated_at — DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, plus ON UPDATE
+ *                CURRENT_TIMESTAMP on MySQL only (no SQLite equivalent), when
+ *                'timestamps' resolves to true (see constructor).
+ *   deleted_at — DATETIME NULL DEFAULT NULL, matching Model's $softDeletes
+ *                convention, when 'soft_deletes' resolves to true.
  *
- * Optional system columns:
- *   'timestamps'   => true adds updated_at — DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
- *                     plus ON UPDATE CURRENT_TIMESTAMP on MySQL only (no SQLite equivalent).
- *   'soft_deletes' => true adds deleted_at — DATETIME NULL DEFAULT NULL, matching
- *                     Model's $softDeletes convention.
+ * A table's own 'timestamps'/'soft_deletes' key always wins; when a table
+ * doesn't set one, it falls back to this instance's $defaultTimestamps/
+ * $defaultSoftDeletes constructor arguments — set by the app that
+ * constructs this builder (see Dashboard::initModuleSchemas() and its
+ * 'schema.timestamps'/'schema.soft_deletes' config keys), not hardcoded here.
  *
  * Table definition format:
  *
  *   'schema' => [
  *       'my_table' => [
- *           'timestamps'   => true,                    // adds updated_at (optional)
- *           'soft_deletes' => true,                    // adds deleted_at (optional)
+ *           'timestamps'   => true,                    // override this builder's default
+ *           'soft_deletes' => true,                    // override this builder's default
  *           'columns' => [
  *               'user_id' => ['type' => 'id_ref',      'null' => false],
  *               'label'   => ['type' => 'varchar(255)', 'null' => false],
@@ -53,6 +58,19 @@ use PDO;
  */
 final class ModuleSchemaBuilder
 {
+    /**
+     * @param bool $defaultTimestamps  Fallback for a table that doesn't set its own
+     *                                 'timestamps' key. False keeps this builder's
+     *                                 behavior unchanged for any caller that doesn't
+     *                                 pass an argument.
+     * @param bool $defaultSoftDeletes Fallback for a table that doesn't set its own
+     *                                 'soft_deletes' key. Same default rationale.
+     */
+    public function __construct(
+        public readonly bool $defaultTimestamps = false,
+        public readonly bool $defaultSoftDeletes = false,
+    ) {}
+
     /**
      * Executes CREATE TABLE IF NOT EXISTS for every table in the schema definition.
      *
@@ -158,8 +176,10 @@ final class ModuleSchemaBuilder
      *                  table whose PK is a different column, e.g. a token string, or a
      *                  composite-key junction table with no single PK column at all).
      *   - 'created_at' appended as DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP if not defined.
-     *   - 'updated_at' appended with ON UPDATE CURRENT_TIMESTAMP if 'timestamps' => true and not defined.
-     *   - 'deleted_at' appended as DATETIME NULL DEFAULT NULL if 'soft_deletes' => true and not defined.
+     *   - 'updated_at' appended with ON UPDATE CURRENT_TIMESTAMP if 'timestamps' resolves to
+     *     true (table's own key, falling back to $defaultTimestamps) and not already defined.
+     *   - 'deleted_at' appended as DATETIME NULL DEFAULT NULL if 'soft_deletes' resolves to
+     *     true (table's own key, falling back to $defaultSoftDeletes) and not already defined.
      *
      * User-defined columns always take priority over injected ones.
      *
@@ -169,8 +189,8 @@ final class ModuleSchemaBuilder
     private function expandDefinition(array $definition): array
     {
         $userColumns  = (array) ($definition['columns'] ?? []);
-        $timestamps   = (bool)  ($definition['timestamps']   ?? false);
-        $softDeletes  = (bool)  ($definition['soft_deletes'] ?? false);
+        $timestamps   = (bool)  ($definition['timestamps']   ?? $this->defaultTimestamps);
+        $softDeletes  = (bool)  ($definition['soft_deletes'] ?? $this->defaultSoftDeletes);
         $hasOwnPrimary = array_key_exists('id', $userColumns)
             || isset($definition['primary'])
             || (bool) ($definition['no_id'] ?? false);

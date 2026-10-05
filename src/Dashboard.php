@@ -831,16 +831,25 @@ class Dashboard
      * tables whose schema has not changed — no INFORMATION_SCHEMA queries on
      * the happy path.
      *
+     * 'schema.timestamps'/'schema.soft_deletes' in $config set this app's own
+     * default for every table that doesn't declare its own 'timestamps'/
+     * 'soft_deletes' key — both default to false, unchanged from today's
+     * behavior, unless this app's config opts in.
+     *
      * @param ContainerInterface   $container PSR-11 container.
      * @param array<string, mixed> $config    Application config.
      */
     private static function initModuleSchemas(ContainerInterface $container, array $config): void
     {
         $tablePrefix = (string) ($config['table_prefix'] ?? '');
+        $builder     = new ModuleSchemaBuilder(
+            (bool) ($config['schema']['timestamps']   ?? false),
+            (bool) ($config['schema']['soft_deletes'] ?? false),
+        );
 
         $manager = new SchemaStateManager(
             $container->get('pdo.raw'),
-            new ModuleSchemaBuilder(),
+            $builder,
             new SchemaInspector(),
             $tablePrefix,
         );
@@ -874,7 +883,7 @@ class Dashboard
                         }
                     }
 
-                    (new SchemaStateManager($pdo, new ModuleSchemaBuilder(), new SchemaInspector()))
+                    (new SchemaStateManager($pdo, $builder, new SchemaInspector()))
                         ->sync([(string) $slug => ['schema' => (array) ($entry['schema'] ?? [])]]);
                     $key = (string) ($entry['key'] ?? $slug . '.sqlite');
                     $container->set($key, static fn() => $pdo);
