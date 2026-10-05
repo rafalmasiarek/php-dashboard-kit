@@ -1,5 +1,17 @@
 # Changelog
 
+## [4.8.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.7.0...v4.8.0) (2026-10-05)
+
+
+### Features
+
+* **clock:** add richer timezone-aware ClockInterface, TimezoneClock ([#59](https://github.com/rafalmasiarek/php-dashboard-kit/issues/59)) ([91f4ef0](https://github.com/rafalmasiarek/php-dashboard-kit/commit/91f4ef07d3637ff03a4f3bde25c5817b68f8a1c0))
+
+
+### Bug Fixes
+
+* **clock:** simplify TimezoneClock to a zero-config default ([#60](https://github.com/rafalmasiarek/php-dashboard-kit/issues/60)) ([d1554eb](https://github.com/rafalmasiarek/php-dashboard-kit/commit/d1554eb86d4708fd8cda501826f82f55b0a4cf22))
+
 ## [4.7.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.6.1...v4.7.0) (2026-10-05)
 
 
