@@ -310,6 +310,19 @@ abstract class Model
     }
 
     /**
+     * Starts a fluent WHERE chain for the model's table with a raw SQL
+     * fragment as the first condition — see QueryBuilder::whereRaw().
+     *
+     * @param  string      $sql    Raw SQL fragment.
+     * @param  list<mixed> $params Bound values for the '?' placeholders in $sql, in order.
+     * @return QueryBuilder
+     */
+    public static function whereRaw(string $sql, array $params = []): QueryBuilder
+    {
+        return static::newQuery()->whereRaw($sql, $params);
+    }
+
+    /**
      * Runs $callback inside a transaction, committing on normal return and
      * rolling back if it throws.
      *
