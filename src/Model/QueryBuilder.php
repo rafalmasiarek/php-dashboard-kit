@@ -51,6 +51,14 @@ final class QueryBuilder
     private array $orderBys = [];
 
     /**
+     * SELECT column list. Defaults to '*'. Set via select() — e.g. for a
+     * join() where some joined table's columns should be left out.
+     *
+     * @var list<string>
+     */
+    private array $selectColumns = ['*'];
+
+    /**
      * Whether soft-deleted rows are included. Set by withTrashed()/onlyTrashed().
      *
      * @var bool
@@ -115,6 +123,9 @@ final class QueryBuilder
      * parameter. A Raw value is emitted verbatim instead of being bound:
      *   ->where('expires_at', '>', new Raw('NOW()'))
      *
+     * $column is backtick-wrapped as one identifier — do not pass a
+     * qualified 'table.column' name here (use select()/join() for those).
+     *
      * @param  string $column          Column name (trusted, not user input).
      * @param  mixed  $operatorOrValue Operator string when $value is given; bound value otherwise.
      * @param  mixed  $value           Bound value, null, or Raw when an explicit operator is given.
@@ -153,6 +164,20 @@ final class QueryBuilder
     public function whereNotIn(string $column, array $values): static
     {
         $this->wheres[] = ['column' => $column, 'in' => $values, 'not' => true];
+        return $this;
+    }
+
+    /**
+     * Sets the SELECT column list, replacing the default '*'. Columns are
+     * emitted verbatim (trusted, not user input) — qualify them yourself
+     * for a join, e.g. select('user_tokens.token', 'users.email').
+     *
+     * @param  string ...$columns
+     * @return static
+     */
+    public function select(string ...$columns): static
+    {
+        $this->selectColumns = $columns !== [] ? $columns : ['*'];
         return $this;
     }
 
@@ -347,8 +372,9 @@ final class QueryBuilder
     {
         [$whereClause, $params] = $this->buildWhere();
 
-        $sql  = "SELECT * FROM `{$this->table}`" . $this->joinSql();
-        $sql .= $whereClause !== '' ? " WHERE {$whereClause}" : '';
+        $columns = implode(', ', $this->selectColumns);
+        $sql     = "SELECT {$columns} FROM `{$this->table}`" . $this->joinSql();
+        $sql    .= $whereClause !== '' ? " WHERE {$whereClause}" : '';
 
         if ($this->orderBys !== []) {
             $sql .= ' ORDER BY ' . implode(', ', $this->orderBys);
