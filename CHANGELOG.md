@@ -1,5 +1,13 @@
 # Changelog
 
+## [4.6.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.5.0...v4.6.0) (2026-10-05)
+
+
+### Features
+
+* **model:** add max()/min()/sum() aggregates and joinOn()/leftJoinOn() ([#51](https://github.com/rafalmasiarek/php-dashboard-kit/issues/51)) ([4c526fb](https://github.com/rafalmasiarek/php-dashboard-kit/commit/4c526fbe362891a7618467423e6ca014f8dfdf20))
+* **schema:** make timestamps/soft_deletes defaults app-configurable ([#52](https://github.com/rafalmasiarek/php-dashboard-kit/issues/52)) ([dc7967d](https://github.com/rafalmasiarek/php-dashboard-kit/commit/dc7967d42994c4a8d188219f75108a10c41d801c))
+
 ## [4.5.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.4.0...v4.5.0) (2026-10-05)
 
 
