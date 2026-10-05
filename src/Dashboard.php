@@ -40,6 +40,7 @@ use rafalmasiarek\DashboardKit\Log\SecretRedactionProcessor;
 use rafalmasiarek\DashboardKit\Mail\Driver\NullDriver;
 use rafalmasiarek\DashboardKit\Mail\Driver\SmtpDriver;
 use rafalmasiarek\DashboardKit\Mail\Mailer;
+use rafalmasiarek\DashboardKit\Mail\MailerInterface;
 use rafalmasiarek\DashboardKit\Utils\PasswordStrength;
 use rafalmasiarek\Csrf\Csrf;
 use rafalmasiarek\RealIpResolver;
@@ -515,7 +516,7 @@ class Dashboard
             )
         );
 
-        $container->set(Auth::class, static function (ContainerInterface $c) use ($userFields, $requireActivation, $allowPasswordReset, $mailerConfig) {
+        $container->set(Auth::class, static function (ContainerInterface $c) use ($userFields, $requireActivation, $allowPasswordReset) {
             $pdo     = $c->get(PDO::class);
             $storage = new PdoUserStorage($pdo, new UuidUserIdPolicy());
 
@@ -528,12 +529,10 @@ class Dashboard
                 $auth->addLoginExtension($activeExt);
             }
 
-            $mailer = !empty($mailerConfig) ? $c->get(Mailer::class) : null;
             $auth->createSchema(
                 new DashboardUserColumnsProvider(),
                 new UserFieldsSchemaProvider($userFields),
                 ...($allowPasswordReset ? [new PasswordResetSchemaProvider()] : []),
-                ...($mailer !== null ? [$mailer] : []),
             );
 
             return $auth;
@@ -778,10 +777,11 @@ class Dashboard
                     $c->get(AuditLog::class),
                 );
             });
+            $container->set(MailerInterface::class, static fn(ContainerInterface $c) => $c->get(Mailer::class));
         }
 
         $container->set(PasswordResetController::class, static function (ContainerInterface $c) use ($passwordStrength, $mailerConfig) {
-            $mailer = !empty($mailerConfig) ? $c->get(Mailer::class) : null;
+            $mailer = !empty($mailerConfig) ? $c->get(MailerInterface::class) : null;
             return new PasswordResetController(
                 $c->get('view'),
                 $c->get(Auth::class),
@@ -809,7 +809,7 @@ class Dashboard
                 $c->get(PDO::class),
                 $c->get('password_strength'),
                 $requireActivation,
-                !empty($mailerConfig) ? $c->get(Mailer::class) : null,
+                !empty($mailerConfig) ? $c->get(MailerInterface::class) : null,
                 $c->get('auth.before_login'),
                 $c->get('auth.before_register'),
                 $c->get('dashboard.url_prefix'),

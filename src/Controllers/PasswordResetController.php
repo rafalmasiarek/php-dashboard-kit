@@ -9,7 +9,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use rafalmasiarek\DashboardKit\Flash;
 use rafalmasiarek\DashboardKit\Hook\HookRegistry;
 use rafalmasiarek\DashboardKit\Log\AuditLog;
-use rafalmasiarek\DashboardKit\Mail\Mailer;
+use rafalmasiarek\DashboardKit\Mail\MailerInterface;
 use rafalmasiarek\DashboardKit\Mail\MailMessage;
 use rafalmasiarek\DashboardKit\Utils\PasswordStrength;
 use Slim\Views\Twig;
@@ -42,7 +42,7 @@ class PasswordResetController
      * @param HookRegistry         $hooks              Event hook registry.
      * @param AuditLog             $audit              Audit logger.
      * @param array<string, mixed> $passwordStrength   Resolved password-strength config.
-     * @param Mailer|null          $mailer             Optional mailer — reset link is logged when null.
+     * @param MailerInterface|null $mailer             Optional mailer — reset link is logged when null.
      * @param string               $dashboardUrlPrefix Full URL prefix for dashboard redirects (e.g. '/api/admin').
      */
     public function __construct(
@@ -53,7 +53,7 @@ class PasswordResetController
         private readonly HookRegistry $hooks,
         private readonly AuditLog     $audit,
         private readonly array        $passwordStrength,
-        private readonly ?Mailer      $mailer,
+        private readonly ?MailerInterface $mailer,
         private readonly string       $dashboardUrlPrefix = '',
     ) {
     }
