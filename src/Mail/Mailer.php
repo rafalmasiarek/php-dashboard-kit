@@ -2,7 +2,6 @@
 
 namespace rafalmasiarek\DashboardKit\Mail;
 
-use AuthKit\Extension\SchemaProviderInterface;
 use rafalmasiarek\DashboardKit\Hook\HookRegistry;
 use rafalmasiarek\DashboardKit\Log\AuditLog;
 use rafalmasiarek\DashboardKit\Mail\Driver\MailDriverInterface;
@@ -24,12 +23,9 @@ use Slim\Views\Twig;
  *   mail_sent   (MailMessage $message)               — after successful delivery
  *   mail_failed (MailMessage $message, \Throwable $e) — on delivery failure (exception is re-thrown)
  *
- * Implements SchemaProviderInterface to declare the mail_tracking table, which
- * records open-pixel events for every outgoing email from the dashboard.
- *
  * @package rafalmasiarek\DashboardKit\Mail
  */
-class Mailer implements SchemaProviderInterface
+class Mailer implements MailerInterface
 {
     /**
      * @param MailDriverInterface $driver    Active transport driver.
@@ -112,45 +108,6 @@ class Mailer implements SchemaProviderInterface
 
         $text = $message->getTextBody() ?? self::htmlToText($html);
         return [$html, $text];
-    }
-
-    /**
-     * Declares the mail_tracking table used for open-pixel audit tracking.
-     *
-     * Every email sent by Mailer::send() can embed a tracking pixel whose token
-     * is stored here. When the recipient opens the email the pixel fires, and
-     * the opened_at timestamp and IP are recorded via the /mail/track/:token route.
-     *
-     * @param  string        $driver PDO driver name.
-     * @return list<string>
-     */
-    public function additionalSchema(string $driver): array
-    {
-        if ($driver === 'sqlite') {
-            return [
-                'CREATE TABLE IF NOT EXISTS mail_tracking (
-                    id         INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
-                    token      TEXT     NOT NULL UNIQUE,
-                    to_email   TEXT     NOT NULL,
-                    mail_type  TEXT     NOT NULL,
-                    sent_at    DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                    opened_at  DATETIME NULL DEFAULT NULL,
-                    open_ip    TEXT     NULL DEFAULT NULL
-                )',
-            ];
-        }
-
-        return [
-            'CREATE TABLE IF NOT EXISTS mail_tracking (
-                id         INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
-                token      CHAR(32)     NOT NULL UNIQUE,
-                to_email   VARCHAR(255) NOT NULL,
-                mail_type  VARCHAR(50)  NOT NULL,
-                sent_at    DATETIME     NOT NULL DEFAULT NOW(),
-                opened_at  DATETIME     NULL DEFAULT NULL,
-                open_ip    VARCHAR(45)  NULL DEFAULT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4',
-        ];
     }
 
     /**

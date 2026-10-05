@@ -28,6 +28,14 @@ class MailMessage
     /** @var array<string, mixed> Variables passed to the Twig template. */
     private array $variables = [];
 
+    /**
+     * Raw HTML fragments queued via appendBodyHtml(), flattened into the
+     * 'extra_body_html' template variable (sorted by priority) on read.
+     *
+     * @var list<array{html: string, priority: int}>
+     */
+    private array $bodyHtmlAppends = [];
+
     /** @var string|null Explicit HTML body (used when template is not set). */
     private ?string $htmlBody = null;
 
@@ -84,6 +92,46 @@ class MailMessage
     {
         $this->template  = $path;
         $this->variables = $variables;
+        return $this;
+    }
+
+    /**
+     * Merges one additional template variable in, without disturbing any
+     * others already set — the only way to add a variable after template()
+     * has already replaced the full set. Lets a Mailer decorator inject its
+     * own value (e.g. appending to the 'extra_body_html' list layout.twig
+     * renders) into whatever message it's wrapping, without needing to know
+     * or preserve the caller's other variables.
+     *
+     * @param string $key
+     * @param mixed  $value
+     *
+     * @return self
+     */
+    public function variable(string $key, mixed $value): self
+    {
+        $this->variables[$key] = $value;
+        return $this;
+    }
+
+    /**
+     * Queues a raw HTML fragment to render after the main content, via the
+     * 'extra_body_html' loop in layout.twig — the generic extension point
+     * for a Mailer decorator to append something to every email (e.g. an
+     * open-tracking pixel) without layout.twig knowing what it is.
+     *
+     * Fragments render in ascending $priority order (ties keep insertion
+     * order) — a tracking pixel should use a high priority (e.g. 999) to
+     * guarantee it renders after anything else appended.
+     *
+     * @param string $html
+     * @param int    $priority Lower renders first; default 0.
+     *
+     * @return self
+     */
+    public function appendBodyHtml(string $html, int $priority = 0): self
+    {
+        $this->bodyHtmlAppends[] = ['html' => $html, 'priority' => $priority];
         return $this;
     }
 
@@ -148,11 +196,22 @@ class MailMessage
     }
 
     /**
+     * Returns the template variables, with any appendBodyHtml() fragments
+     * flattened into 'extra_body_html' (sorted by priority ascending) —
+     * overwrites a same-named key set via template()'s own $variables.
+     *
      * @return array<string, mixed>
      */
     public function getVariables(): array
     {
-        return $this->variables;
+        if ($this->bodyHtmlAppends === []) {
+            return $this->variables;
+        }
+
+        $sorted = $this->bodyHtmlAppends;
+        usort($sorted, static fn(array $a, array $b): int => $a['priority'] <=> $b['priority']);
+
+        return [...$this->variables, 'extra_body_html' => array_column($sorted, 'html')];
     }
 
     /**

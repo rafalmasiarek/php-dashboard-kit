@@ -10,7 +10,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 use rafalmasiarek\DashboardKit\Flash;
 use rafalmasiarek\DashboardKit\Hook\HookRegistry;
 use rafalmasiarek\DashboardKit\Log\AuditLog;
-use rafalmasiarek\DashboardKit\Mail\Mailer;
+use rafalmasiarek\DashboardKit\Mail\MailerInterface;
 use rafalmasiarek\DashboardKit\Mail\MailMessage;
 use rafalmasiarek\DashboardKit\Utils\PasswordStrength;
 use Slim\Views\Twig;
@@ -32,7 +32,7 @@ class AuthController
      * @param PDO           $db                 Database connection — used to assign UUID on registration.
      * @param array<string, mixed> $passwordStrength Resolved password-strength config (enabled, min_score, rules).
      * @param bool          $requireActivation  When true, sends an activation email after registration.
-     * @param Mailer|null   $mailer             Mailer instance; required when requireActivation is true to send emails.
+     * @param MailerInterface|null $mailer      Mailer instance; required when requireActivation is true to send emails.
      * @param callable|null $beforeLogin        Called before credential check on POST /login.
      *                                          Signature: (Request): ?string — return null to pass, string to block with that error.
      *                                          Set via config key 'before_login' or $container->set('auth.before_login', callable).
@@ -52,7 +52,7 @@ class AuthController
         private readonly PDO          $db,
         private readonly array        $passwordStrength,
         private readonly bool         $requireActivation  = false,
-        private readonly ?Mailer      $mailer             = null,
+        private readonly ?MailerInterface $mailer         = null,
         private readonly mixed        $beforeLogin        = null,
         private readonly mixed        $beforeRegister     = null,
         private readonly string       $dashboardUrlPrefix = '',
@@ -225,7 +225,7 @@ class AuthController
     }
 
     /**
-     * Generates an activation token, stores it, and sends the activation email with tracking pixel.
+     * Generates an activation token, stores it, and sends the activation email.
      *
      * When the mailer is not configured, only the token is stored; no email is sent.
      *
@@ -246,19 +246,13 @@ class AuthController
             return;
         }
 
-        $trackToken = bin2hex(random_bytes(16));
-
-        $this->db->prepare('INSERT INTO mail_tracking (token, to_email, mail_type) VALUES (?, ?, ?)')
-           ->execute([$trackToken, $user->getEmail(), 'activation']);
-
         $base = $this->baseUrl($request);
 
         $this->mailer->send(
             MailMessage::to($user->getEmail())
                 ->subject('Activate your account')
                 ->template('emails/activation.twig', [
-                    'activation_link'    => $base . '/activate/' . $token,
-                    'tracking_pixel_url' => $base . '/mail/track/' . $trackToken,
+                    'activation_link' => $base . '/activate/' . $token,
                 ])
         );
     }

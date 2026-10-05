@@ -40,6 +40,7 @@ use rafalmasiarek\DashboardKit\Log\SecretRedactionProcessor;
 use rafalmasiarek\DashboardKit\Mail\Driver\NullDriver;
 use rafalmasiarek\DashboardKit\Mail\Driver\SmtpDriver;
 use rafalmasiarek\DashboardKit\Mail\Mailer;
+use rafalmasiarek\DashboardKit\Mail\MailerInterface;
 use rafalmasiarek\DashboardKit\Utils\PasswordStrength;
 use rafalmasiarek\Csrf\Csrf;
 use rafalmasiarek\RealIpResolver;
@@ -124,7 +125,7 @@ class Dashboard
      *   registration         (bool)   When true, registers the /register route. Default: false.
      *   password_reset       (bool)   When true, registers /forgot-password and /reset-password routes. Default: false.
      *   require_activation   (bool)     When true, new registrations require email activation before login is allowed.
-     *                                   Wires /activate/{token}, /mail/track/{token}, login check, and activation email
+     *                                   Wires /activate/{token}, login check, and activation email
      *                                   (requires mailer to be configured). Default: false.
      *   before_login         (callable) Called before credentials are checked on POST /login.
      *                                   Signature: (ServerRequestInterface): ?string
@@ -527,7 +528,7 @@ class Dashboard
             )
         );
 
-        $container->set(Auth::class, static function (ContainerInterface $c) use ($userFields, $requireActivation, $allowPasswordReset, $mailerConfig) {
+        $container->set(Auth::class, static function (ContainerInterface $c) use ($userFields, $requireActivation, $allowPasswordReset) {
             $pdo     = $c->get(PDO::class);
             $storage = new PdoUserStorage($pdo, new UuidUserIdPolicy());
 
@@ -540,12 +541,10 @@ class Dashboard
                 $auth->addLoginExtension($activeExt);
             }
 
-            $mailer = !empty($mailerConfig) ? $c->get(Mailer::class) : null;
             $auth->createSchema(
                 new DashboardUserColumnsProvider(),
                 new UserFieldsSchemaProvider($userFields),
                 ...($allowPasswordReset ? [new PasswordResetSchemaProvider()] : []),
-                ...($mailer !== null ? [$mailer] : []),
             );
 
             return $auth;
@@ -790,10 +789,11 @@ class Dashboard
                     $c->get(AuditLog::class),
                 );
             });
+            $container->set(MailerInterface::class, static fn(ContainerInterface $c) => $c->get(Mailer::class));
         }
 
         $container->set(PasswordResetController::class, static function (ContainerInterface $c) use ($passwordStrength, $mailerConfig) {
-            $mailer = !empty($mailerConfig) ? $c->get(Mailer::class) : null;
+            $mailer = !empty($mailerConfig) ? $c->get(MailerInterface::class) : null;
             return new PasswordResetController(
                 $c->get('view'),
                 $c->get(Auth::class),
@@ -821,7 +821,7 @@ class Dashboard
                 $c->get(PDO::class),
                 $c->get('password_strength'),
                 $requireActivation,
-                !empty($mailerConfig) ? $c->get(Mailer::class) : null,
+                !empty($mailerConfig) ? $c->get(MailerInterface::class) : null,
                 $c->get('auth.before_login'),
                 $c->get('auth.before_register'),
                 $c->get('dashboard.url_prefix'),
@@ -1033,32 +1033,6 @@ class Dashboard
 
                     $flash->add('success', 'Your account has been activated. You can now log in.');
                     return $res->withHeader('Location', $dashboardUrlPrefix . '/login')->withStatus(302);
-                });
-
-                $dash->get('/mail/track/{token}', function ($req, $res, $args) use ($container) {
-                    $db = $container->get(PDO::class);
-                    $ip = $container->get(RealIpResolver::class)->getIp() ?: 'unknown';
-
-                    $stmt = $db->prepare(
-                        'SELECT id, to_email, mail_type FROM mail_tracking WHERE token = ? AND opened_at IS NULL'
-                    );
-                    $stmt->execute([$args['token']]);
-                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
-
-                    if ($row) {
-                        $db->prepare('UPDATE mail_tracking SET opened_at = NOW(), open_ip = ? WHERE id = ?')
-                           ->execute([$ip, $row['id']]);
-                        $container->get(AuditLog::class)->mailOpen($row['to_email'], $row['mail_type']);
-                    }
-
-                    $res->getBody()->write(
-                        base64_decode('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7')
-                    );
-
-                    return $res
-                        ->withHeader('Content-Type', 'image/gif')
-                        ->withHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
-                        ->withHeader('Pragma', 'no-cache');
                 });
             }
 
