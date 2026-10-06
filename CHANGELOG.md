@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.2.0...v5.3.0) (2026-10-06)
+
+
+### Features
+
+* **mail:** add correlationId() for audit-log correlation, fix footer insertion ([#68](https://github.com/rafalmasiarek/php-dashboard-kit/issues/68)) ([e089d7b](https://github.com/rafalmasiarek/php-dashboard-kit/commit/e089d7bd7fca7519ffaa759a89ee3fc8ee78c664))
+
 ## [5.2.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.1.0...v5.2.0) (2026-10-06)
 
 
