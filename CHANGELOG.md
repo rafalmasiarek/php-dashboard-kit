@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.2.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.1.0...v5.2.0) (2026-10-06)
+
+
+### Features
+
+* **mail:** add cc/bcc, embed, customHeader, messageId, DKIM signing ([#66](https://github.com/rafalmasiarek/php-dashboard-kit/issues/66)) ([fb5b9bc](https://github.com/rafalmasiarek/php-dashboard-kit/commit/fb5b9bc942097435e7ec652184cee4057f1c35f1))
+
 ## [5.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.0.0...v5.1.0) (2026-10-06)
 
 
