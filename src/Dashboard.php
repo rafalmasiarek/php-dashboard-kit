@@ -43,6 +43,12 @@ use rafalmasiarek\DashboardKit\Mail\Mailer;
 use rafalmasiarek\DashboardKit\Mail\MailerInterface;
 use rafalmasiarek\DashboardKit\Utils\PasswordStrength;
 use rafalmasiarek\Csrf\Csrf;
+use rafalmasiarek\DnsResolver\DnsResolverInterface;
+use rafalmasiarek\DnsResolver\SystemDnsResolver;
+use rafalmasiarek\HttpClient\Http\CurlHttpClient;
+use rafalmasiarek\HttpClient\Http\DefaultRetryStrategy;
+use rafalmasiarek\HttpClient\Http\HttpClientInterface;
+use rafalmasiarek\HttpClient\Http\RetryHttpClient;
 use rafalmasiarek\RealIpResolver;
 use rafalmasiarek\RealIpResolver\TrustedProxy;
 use rafalmasiarek\DashboardKit\Controllers\AuthController;
@@ -774,23 +780,31 @@ class Dashboard
             new SettingsController($c->get('view'), $c->get(Auth::class), $c->get(Flash::class), $c->get(PDO::class), $c->get('user_fields'), $c->get(HookRegistry::class), $c->get(AuditLog::class), $c->get('dashboard.url_prefix'))
         );
 
-        if (!empty($mailerConfig)) {
-            $container->set(Mailer::class, static function (ContainerInterface $c) use ($mailerConfig, $appName) {
-                $driver = match ($mailerConfig['driver'] ?? 'null') {
-                    'smtp'  => new SmtpDriver((array) ($mailerConfig['smtp'] ?? [])),
-                    default => new NullDriver(),
-                };
-                return new Mailer(
-                    $driver,
-                    $c->get('view'),
-                    (string) ($mailerConfig['from_email'] ?? ''),
-                    (string) ($mailerConfig['from_name']  ?? $appName),
-                    $c->get(HookRegistry::class),
-                    $c->get(AuditLog::class),
-                );
-            });
-            $container->set(MailerInterface::class, static fn(ContainerInterface $c) => $c->get(Mailer::class));
-        }
+        $container->set(DnsResolverInterface::class, static fn() => new SystemDnsResolver());
+        $container->set(HttpClientInterface::class, static fn(ContainerInterface $c) => new RetryHttpClient(
+            new CurlHttpClient($c->get(DnsResolverInterface::class)),
+            new DefaultRetryStrategy(),
+        ));
+
+        // Always bound — an empty $mailerConfig naturally yields NullDriver via
+        // the match default below, so this is a safe, zero-config no-op mailer
+        // rather than an absent binding. Lets any consumer (addons, app code)
+        // rely on MailerInterface::class always being resolvable.
+        $container->set(Mailer::class, static function (ContainerInterface $c) use ($mailerConfig, $appName) {
+            $driver = match ($mailerConfig['driver'] ?? 'null') {
+                'smtp'  => new SmtpDriver((array) ($mailerConfig['smtp'] ?? []), $c->get(DnsResolverInterface::class)),
+                default => new NullDriver(),
+            };
+            return new Mailer(
+                $driver,
+                $c->get('view'),
+                (string) ($mailerConfig['from_email'] ?? ''),
+                (string) ($mailerConfig['from_name']  ?? $appName),
+                $c->get(HookRegistry::class),
+                $c->get(AuditLog::class),
+            );
+        });
+        $container->set(MailerInterface::class, static fn(ContainerInterface $c) => $c->get(Mailer::class));
 
         $container->set(PasswordResetController::class, static function (ContainerInterface $c) use ($passwordStrength, $mailerConfig) {
             $mailer = !empty($mailerConfig) ? $c->get(MailerInterface::class) : null;

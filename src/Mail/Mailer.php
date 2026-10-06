@@ -11,10 +11,10 @@ use Slim\Views\Twig;
 /**
  * Sends outgoing emails by rendering Twig templates and delegating to a transport driver.
  *
- * Registered in the DI container as Mailer::class when 'mailer' config key is present.
+ * Registered unconditionally in the DI container as Mailer::class.
  * The active driver is determined by config['mailer']['driver']:
- *   'smtp'  — SmtpDriver (requires phpmailer/phpmailer)
- *   'null'  — NullDriver (logs and discards; default for dev)
+ *   'smtp'  — SmtpDriver (rafalmasiarek/mailer, no PHPMailer dependency)
+ *   'null'  — NullDriver (logs and discards; default when unset)
  *
  * Adding a new driver: implement MailDriverInterface and add a case to the match
  * expression in Dashboard::buildContainer().
@@ -58,7 +58,18 @@ class Mailer implements MailerInterface
      */
     public function send(MailMessage $message): void
     {
-        [$html, $text] = $this->resolveBody($message);
+        $rawBody = $message->getRawBody();
+
+        if ($rawBody !== null) {
+            $html        = $rawBody->body;
+            $text        = '';
+            $contentType = $rawBody->contentType;
+            $encoding    = $rawBody->encoding;
+        } else {
+            [$html, $text] = $this->resolveBody($message);
+            $contentType = null;
+            $encoding    = null;
+        }
 
         try {
             $this->driver->send(
@@ -69,6 +80,10 @@ class Mailer implements MailerInterface
                 $message->getSubject(),
                 $html,
                 $text,
+                $message->getReplyTo(),
+                $message->getAttachments(),
+                $contentType,
+                $encoding,
             );
         } catch (\Throwable $e) {
             $this->audit->mailAttempt(false, $message->getToEmail(), $message->getSubject(), $e->getMessage());
@@ -104,6 +119,15 @@ class Mailer implements MailerInterface
             throw new \InvalidArgumentException(
                 'MailMessage requires either template() or html() to be set before sending.'
             );
+        }
+
+        // template() renders extra_body_html through its own Twig loop
+        // above; this branch has no templating engine, so appendBodyHtml()
+        // fragments are appended directly instead — otherwise they would
+        // silently never apply to a message built via html().
+        $extraHtml = (array) ($message->getVariables()['extra_body_html'] ?? []);
+        foreach ($extraHtml as $fragment) {
+            $html .= (string) $fragment;
         }
 
         $text = $message->getTextBody() ?? self::htmlToText($html);

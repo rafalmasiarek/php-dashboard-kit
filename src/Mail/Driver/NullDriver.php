@@ -24,6 +24,10 @@ class NullDriver implements MailDriverInterface
         string $subject,
         string $htmlBody,
         string $textBody,
+        ?string $replyTo = null,
+        array $attachments = [],
+        ?string $contentType = null,
+        ?string $encoding = null,
     ): void {
         // suppressed
     }

@@ -2,6 +2,8 @@
 
 namespace rafalmasiarek\DashboardKit\Mail;
 
+use rafalmasiarek\Mailer\RawMimeBody;
+
 /**
  * Fluent builder for a single outgoing email message.
  *
@@ -41,6 +43,15 @@ class MailMessage
 
     /** @var string|null Explicit plain-text body (auto-generated from HTML when null). */
     private ?string $textBody = null;
+
+    /** @var string|null Reply-To address. */
+    private ?string $replyTo = null;
+
+    /** @var list<array{path: string, name?: string}> */
+    private array $attachments = [];
+
+    /** @var RawMimeBody|null */
+    private ?RawMimeBody $rawBody = null;
 
     /**
      * @param string $toEmail Recipient address.
@@ -164,6 +175,48 @@ class MailMessage
     }
 
     /**
+     * Sets the Reply-To address.
+     *
+     * @param string $email
+     *
+     * @return self
+     */
+    public function replyTo(string $email): self
+    {
+        $this->replyTo = $email;
+        return $this;
+    }
+
+    /**
+     * Queues a file attachment.
+     *
+     * @param string $path Absolute path to the file.
+     * @param string $name Attachment filename; defaults to the file's own basename.
+     *
+     * @return self
+     */
+    public function attach(string $path, string $name = ''): self
+    {
+        $this->attachments[] = $name !== '' ? ['path' => $path, 'name' => $name] : ['path' => $path];
+        return $this;
+    }
+
+    /**
+     * Sets a verbatim MIME body, bypassing template()/html()/text() resolution
+     * entirely. Used for content types the normal alternative/mixed structure
+     * cannot represent.
+     *
+     * @param RawMimeBody $body
+     *
+     * @return self
+     */
+    public function rawBody(RawMimeBody $body): self
+    {
+        $this->rawBody = $body;
+        return $this;
+    }
+
+    /**
      * @return string
      */
     public function getToEmail(): string
@@ -228,5 +281,29 @@ class MailMessage
     public function getTextBody(): ?string
     {
         return $this->textBody;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getReplyTo(): ?string
+    {
+        return $this->replyTo;
+    }
+
+    /**
+     * @return list<array{path: string, name?: string}>
+     */
+    public function getAttachments(): array
+    {
+        return $this->attachments;
+    }
+
+    /**
+     * @return RawMimeBody|null
+     */
+    public function getRawBody(): ?RawMimeBody
+    {
+        return $this->rawBody;
     }
 }
