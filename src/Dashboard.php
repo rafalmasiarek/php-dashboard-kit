@@ -45,6 +45,7 @@ use rafalmasiarek\DashboardKit\Utils\PasswordStrength;
 use rafalmasiarek\Csrf\Csrf;
 use rafalmasiarek\DnsResolver\DnsResolverInterface;
 use rafalmasiarek\DnsResolver\SystemDnsResolver;
+use rafalmasiarek\Mailer\DeadLetterStoreInterface;
 use rafalmasiarek\HttpClient\Http\CurlHttpClient;
 use rafalmasiarek\HttpClient\Http\DefaultRetryStrategy;
 use rafalmasiarek\HttpClient\Http\HttpClientInterface;
@@ -792,7 +793,11 @@ class Dashboard
         // rely on MailerInterface::class always being resolvable.
         $container->set(Mailer::class, static function (ContainerInterface $c) use ($mailerConfig, $appName) {
             $driver = match ($mailerConfig['driver'] ?? 'null') {
-                'smtp'  => new SmtpDriver((array) ($mailerConfig['smtp'] ?? []), $c->get(DnsResolverInterface::class)),
+                'smtp'  => new SmtpDriver(
+                    (array) ($mailerConfig['smtp'] ?? []),
+                    $c->get(DnsResolverInterface::class),
+                    $c->has(DeadLetterStoreInterface::class) ? $c->get(DeadLetterStoreInterface::class) : null,
+                ),
                 default => new NullDriver(),
             };
             return new Mailer(
