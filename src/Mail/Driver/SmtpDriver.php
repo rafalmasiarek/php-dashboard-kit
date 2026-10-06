@@ -4,6 +4,7 @@ namespace rafalmasiarek\DashboardKit\Mail\Driver;
 
 use rafalmasiarek\DashboardKit\Mail\Exception\MailException;
 use rafalmasiarek\DnsResolver\DnsResolverInterface;
+use rafalmasiarek\Mailer\DkimSigner;
 use rafalmasiarek\Mailer\MimeBuilder;
 use rafalmasiarek\Mailer\RawMimeBody;
 use rafalmasiarek\Mailer\SmtpClient;
@@ -18,6 +19,9 @@ use rafalmasiarek\Mailer\SmtpException;
  *   username   — SMTP username (leave empty to disable auth)
  *   password   — SMTP password
  *   encryption — 'tls' (STARTTLS), 'ssl' (implicit TLS), or '' (none)
+ *   dkim       — optional ['private_key' => PEM string, 'domain' => ..., 'selector' => ...,
+ *                 'headers' => list<string> (default: From, To, Subject, Date, Message-ID)]
+ *                 Signing is skipped entirely when 'private_key' is empty/absent.
  *
  * @package rafalmasiarek\DashboardKit\Mail\Driver
  */
@@ -36,51 +40,89 @@ class SmtpDriver implements MailDriverInterface
     /**
      * {@inheritdoc}
      */
-    public function send(
-        string $fromEmail,
-        string $fromName,
-        string $toEmail,
-        string $toName,
-        string $subject,
-        string $htmlBody,
-        string $textBody,
-        ?string $replyTo = null,
-        array $attachments = [],
-        ?string $contentType = null,
-        ?string $encoding = null,
-    ): void {
-        $rawBody = $contentType !== null
-            ? new RawMimeBody($htmlBody, $contentType, $encoding ?? '8bit')
+    public function send(OutboundMail $mail): void
+    {
+        $rawBody = $mail->contentType !== null
+            ? new RawMimeBody($mail->htmlBody, $mail->contentType, $mail->encoding ?? '8bit')
             : null;
 
         $message = MimeBuilder::build(
-            $fromEmail,
-            $fromName,
-            $toEmail,
-            $toName,
-            $replyTo,
-            $subject,
-            $rawBody === null ? $htmlBody : null,
-            $rawBody === null ? $textBody : null,
-            $attachments,
-            $rawBody,
-            self::generateMessageId($fromEmail),
+            fromEmail: $mail->fromEmail,
+            fromName: $mail->fromName,
+            toEmail: $mail->toEmail,
+            toName: $mail->toName,
+            replyTo: $mail->replyTo,
+            subject: $mail->subject,
+            htmlBody: $rawBody === null ? $mail->htmlBody : null,
+            textBody: $rawBody === null ? $mail->textBody : null,
+            attachments: $mail->attachments,
+            rawBody: $rawBody,
+            messageId: $mail->messageId ?? self::generateMessageId($mail->fromEmail),
+            cc: $mail->cc,
+            embeds: $mail->embeds,
+            customHeaders: $mail->customHeaders,
+            inReplyTo: $mail->inReplyTo,
+            references: $mail->references,
         );
 
+        $message = $this->maybeSign($message);
+
+        $envelopeRecipients = [$mail->toEmail];
+        foreach ($mail->cc as $addr) {
+            $envelopeRecipients[] = $addr['email'];
+        }
+        foreach ($mail->bcc as $addr) {
+            $envelopeRecipients[] = $addr['email'];
+        }
+
+        $client = new SmtpClient($this->dns);
+        if ($mail->onDebugLine !== null) {
+            $client->setDebugCallback($mail->onDebugLine);
+        }
+
         try {
-            (new SmtpClient($this->dns))->send(
+            $client->send(
                 (string) ($this->config['host'] ?? ''),
                 (int) ($this->config['port'] ?? 587),
                 (string) ($this->config['encryption'] ?? 'tls'),
                 (string) ($this->config['username'] ?? ''),
                 (string) ($this->config['password'] ?? ''),
-                $fromEmail,
-                $toEmail,
+                $mail->envelopeFrom ?? $mail->fromEmail,
+                $envelopeRecipients,
                 $message,
             );
         } catch (SmtpException $e) {
             throw new MailException('SMTP delivery failed: ' . $e->getMessage(), 0, $e);
         }
+    }
+
+    /**
+     * Signs the message with DKIM when config['dkim']['private_key'] is set; returns it
+     * unchanged otherwise.
+     *
+     * @param string $rawMessage
+     *
+     * @return string
+     */
+    private function maybeSign(string $rawMessage): string
+    {
+        $dkim       = (array) ($this->config['dkim'] ?? []);
+        $privateKey = (string) ($dkim['private_key'] ?? '');
+        if ($privateKey === '') {
+            return $rawMessage;
+        }
+
+        $headers = isset($dkim['headers'])
+            ? (array) $dkim['headers']
+            : ['From', 'To', 'Subject', 'Date', 'Message-ID'];
+
+        return DkimSigner::sign(
+            $rawMessage,
+            $privateKey,
+            (string) ($dkim['domain'] ?? ''),
+            (string) ($dkim['selector'] ?? ''),
+            $headers,
+        );
     }
 
     /**
