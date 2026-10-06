@@ -134,7 +134,19 @@ class SmtpDriver implements MailDriverInterface
      */
     private static function generateMessageId(string $fromEmail): string
     {
-        $domain = \substr(\strrchr($fromEmail, '@') ?: '@localhost', 1);
+        $at = \strrchr($fromEmail, '@');
+        if ($at !== false) {
+            $domain = \substr($at, 1);
+        } else {
+            $domain = \gethostname();
+            if ($domain === false || $domain === '') {
+                $domain = \php_uname('n');
+            }
+            if ($domain === '') {
+                $domain = 'localhost';
+            }
+        }
+
         return \bin2hex(\random_bytes(16)) . '@' . $domain;
     }
 }
