@@ -5,6 +5,7 @@ namespace rafalmasiarek\DashboardKit\Mail;
 use rafalmasiarek\DashboardKit\Hook\HookRegistry;
 use rafalmasiarek\DashboardKit\Log\AuditLog;
 use rafalmasiarek\DashboardKit\Mail\Driver\MailDriverInterface;
+use rafalmasiarek\DashboardKit\Mail\Driver\OutboundMail;
 use rafalmasiarek\DashboardKit\Mail\Exception\MailException;
 use Slim\Views\Twig;
 
@@ -71,20 +72,31 @@ class Mailer implements MailerInterface
             $encoding    = null;
         }
 
+        $mail = new OutboundMail(
+            fromEmail: $this->fromEmail,
+            fromName: $this->fromName,
+            toEmail: $message->getToEmail(),
+            toName: $message->getToName(),
+            subject: $message->getSubject(),
+            htmlBody: $html,
+            textBody: $text,
+            replyTo: $message->getReplyTo(),
+            attachments: $message->getAttachments(),
+            contentType: $contentType,
+            encoding: $encoding,
+            cc: $message->getCc(),
+            bcc: $message->getBcc(),
+            embeds: $message->getEmbeds(),
+            customHeaders: $message->getCustomHeaders(),
+            messageId: $message->getMessageId(),
+            inReplyTo: $message->getInReplyTo(),
+            references: $message->getReferences(),
+            envelopeFrom: $message->getEnvelopeFrom(),
+            onDebugLine: $message->getDebugLineCallback(),
+        );
+
         try {
-            $this->driver->send(
-                $this->fromEmail,
-                $this->fromName,
-                $message->getToEmail(),
-                $message->getToName(),
-                $message->getSubject(),
-                $html,
-                $text,
-                $message->getReplyTo(),
-                $message->getAttachments(),
-                $contentType,
-                $encoding,
-            );
+            $this->driver->send($mail);
         } catch (\Throwable $e) {
             $this->audit->mailAttempt(false, $message->getToEmail(), $message->getSubject(), $e->getMessage());
             $this->hooks->emit('mail_failed', $message, $e);

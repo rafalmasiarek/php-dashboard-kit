@@ -47,11 +47,38 @@ class MailMessage
     /** @var string|null Reply-To address. */
     private ?string $replyTo = null;
 
-    /** @var list<array{path: string, name?: string}> */
+    /** @var list<array{path: string, name?: string, mimeType?: string}> */
     private array $attachments = [];
 
     /** @var RawMimeBody|null */
     private ?RawMimeBody $rawBody = null;
+
+    /** @var list<array{email: string, name?: string}> */
+    private array $cc = [];
+
+    /** @var list<array{email: string, name?: string}> */
+    private array $bcc = [];
+
+    /** @var list<array{path: string, cid: string, name?: string, mimeType?: string}> */
+    private array $embeds = [];
+
+    /** @var array<string, string> */
+    private array $customHeaders = [];
+
+    /** @var string|null Caller-assigned Message-ID; a driver generates one when null. */
+    private ?string $messageId = null;
+
+    /** @var string|null Message-ID this message replies to. */
+    private ?string $inReplyTo = null;
+
+    /** @var list<string> */
+    private array $references = [];
+
+    /** @var string|null SMTP envelope sender (MAIL FROM); defaults to the Mailer's fromEmail when null. */
+    private ?string $envelopeFrom = null;
+
+    /** @var \Closure(string): void|null */
+    private ?\Closure $onDebugLine = null;
 
     /**
      * @param string $toEmail Recipient address.
@@ -190,14 +217,157 @@ class MailMessage
     /**
      * Queues a file attachment.
      *
-     * @param string $path Absolute path to the file.
-     * @param string $name Attachment filename; defaults to the file's own basename.
+     * @param string      $path     Absolute path to the file.
+     * @param string      $name     Attachment filename; defaults to the file's own basename.
+     * @param string|null $mimeType Explicit Content-Type; guessed from the file when null.
      *
      * @return self
      */
-    public function attach(string $path, string $name = ''): self
+    public function attach(string $path, string $name = '', ?string $mimeType = null): self
     {
-        $this->attachments[] = $name !== '' ? ['path' => $path, 'name' => $name] : ['path' => $path];
+        $attachment = ['path' => $path];
+        if ($name !== '') {
+            $attachment['name'] = $name;
+        }
+        if ($mimeType !== null) {
+            $attachment['mimeType'] = $mimeType;
+        }
+        $this->attachments[] = $attachment;
+        return $this;
+    }
+
+    /**
+     * Adds a carbon-copy recipient. Call multiple times for multiple recipients.
+     *
+     * @param string $email
+     * @param string $name
+     *
+     * @return self
+     */
+    public function cc(string $email, string $name = ''): self
+    {
+        $this->cc[] = $name !== '' ? ['email' => $email, 'name' => $name] : ['email' => $email];
+        return $this;
+    }
+
+    /**
+     * Adds a blind carbon-copy recipient — envelope-only, never appears in any header.
+     * Call multiple times for multiple recipients.
+     *
+     * @param string $email
+     * @param string $name
+     *
+     * @return self
+     */
+    public function bcc(string $email, string $name = ''): self
+    {
+        $this->bcc[] = $name !== '' ? ['email' => $email, 'name' => $name] : ['email' => $email];
+        return $this;
+    }
+
+    /**
+     * Queues an inline part referenced from the HTML body as "cid:$cid".
+     * Call multiple times for multiple embeds.
+     *
+     * @param string      $path     Absolute path to the file.
+     * @param string      $cid      Content-ID to reference as "cid:$cid" in the HTML body.
+     * @param string      $name     Attachment filename; defaults to the file's own basename.
+     * @param string|null $mimeType Explicit Content-Type; guessed from the file when null.
+     *
+     * @return self
+     */
+    public function embed(string $path, string $cid, string $name = '', ?string $mimeType = null): self
+    {
+        $embed = ['path' => $path, 'cid' => $cid];
+        if ($name !== '') {
+            $embed['name'] = $name;
+        }
+        if ($mimeType !== null) {
+            $embed['mimeType'] = $mimeType;
+        }
+        $this->embeds[] = $embed;
+        return $this;
+    }
+
+    /**
+     * Sets an additional raw header. Call multiple times for multiple headers;
+     * a repeated $name overwrites the earlier value.
+     *
+     * @param string $name
+     * @param string $value
+     *
+     * @return self
+     */
+    public function customHeader(string $name, string $value): self
+    {
+        $this->customHeaders[$name] = $value;
+        return $this;
+    }
+
+    /**
+     * Sets the Message-ID header value. A driver generates one when unset.
+     *
+     * @param string $id Without angle brackets.
+     *
+     * @return self
+     */
+    public function messageId(string $id): self
+    {
+        $this->messageId = $id;
+        return $this;
+    }
+
+    /**
+     * Sets the In-Reply-To header, threading this message to a prior one.
+     *
+     * @param string $messageId Without angle brackets.
+     *
+     * @return self
+     */
+    public function inReplyTo(string $messageId): self
+    {
+        $this->inReplyTo = $messageId;
+        return $this;
+    }
+
+    /**
+     * Sets the References header.
+     *
+     * @param list<string> $messageIds Without angle brackets.
+     *
+     * @return self
+     */
+    public function references(array $messageIds): self
+    {
+        $this->references = $messageIds;
+        return $this;
+    }
+
+    /**
+     * Sets the SMTP envelope sender (MAIL FROM), independent of the visible From: header.
+     * Useful for routing bounces to a dedicated mailbox.
+     *
+     * @param string $email
+     *
+     * @return self
+     */
+    public function envelopeFrom(string $email): self
+    {
+        $this->envelopeFrom = $email;
+        return $this;
+    }
+
+    /**
+     * Registers a callback invoked with each raw transport transcript line,
+     * when supported by the active driver.
+     *
+     * @param callable(string): void $callback
+     *
+     * @return self
+     */
+    public function onDebugLine(callable $callback): self
+    {
+        $this->onDebugLine = $callback instanceof \Closure ? $callback : \Closure::fromCallable($callback);
         return $this;
     }
 
@@ -292,7 +462,7 @@ class MailMessage
     }
 
     /**
-     * @return list<array{path: string, name?: string}>
+     * @return list<array{path: string, name?: string, mimeType?: string}>
      */
     public function getAttachments(): array
     {
@@ -305,5 +475,77 @@ class MailMessage
     public function getRawBody(): ?RawMimeBody
     {
         return $this->rawBody;
+    }
+
+    /**
+     * @return list<array{email: string, name?: string}>
+     */
+    public function getCc(): array
+    {
+        return $this->cc;
+    }
+
+    /**
+     * @return list<array{email: string, name?: string}>
+     */
+    public function getBcc(): array
+    {
+        return $this->bcc;
+    }
+
+    /**
+     * @return list<array{path: string, cid: string, name?: string, mimeType?: string}>
+     */
+    public function getEmbeds(): array
+    {
+        return $this->embeds;
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function getCustomHeaders(): array
+    {
+        return $this->customHeaders;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getMessageId(): ?string
+    {
+        return $this->messageId;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getInReplyTo(): ?string
+    {
+        return $this->inReplyTo;
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function getReferences(): array
+    {
+        return $this->references;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getEnvelopeFrom(): ?string
+    {
+        return $this->envelopeFrom;
+    }
+
+    /**
+     * @return \Closure(string): void|null
+     */
+    public function getDebugLineCallback(): ?\Closure
+    {
+        return $this->onDebugLine;
     }
 }

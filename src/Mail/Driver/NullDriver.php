@@ -16,19 +16,8 @@ class NullDriver implements MailDriverInterface
     /**
      * {@inheritdoc}
      */
-    public function send(
-        string $fromEmail,
-        string $fromName,
-        string $toEmail,
-        string $toName,
-        string $subject,
-        string $htmlBody,
-        string $textBody,
-        ?string $replyTo = null,
-        array $attachments = [],
-        ?string $contentType = null,
-        ?string $encoding = null,
-    ): void {
+    public function send(OutboundMail $mail): void
+    {
         // suppressed
     }
 }
