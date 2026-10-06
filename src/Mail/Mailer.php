@@ -98,12 +98,12 @@ class Mailer implements MailerInterface
         try {
             $this->driver->send($mail);
         } catch (\Throwable $e) {
-            $this->audit->mailAttempt(false, $message->getToEmail(), $message->getSubject(), $e->getMessage());
+            $this->audit->mailAttempt(false, $message->getToEmail(), $message->getSubject(), $e->getMessage(), $message->getCorrelationId());
             $this->hooks->emit('mail_failed', $message, $e);
             throw $e instanceof MailException ? $e : new MailException($e->getMessage(), 0, $e);
         }
 
-        $this->audit->mailAttempt(true, $message->getToEmail(), $message->getSubject());
+        $this->audit->mailAttempt(true, $message->getToEmail(), $message->getSubject(), null, $message->getCorrelationId());
         $this->hooks->emit('mail_sent', $message);
     }
 
@@ -135,15 +135,39 @@ class Mailer implements MailerInterface
 
         // template() renders extra_body_html through its own Twig loop
         // above; this branch has no templating engine, so appendBodyHtml()
-        // fragments are appended directly instead — otherwise they would
+        // fragments are inserted directly instead — otherwise they would
         // silently never apply to a message built via html().
         $extraHtml = (array) ($message->getVariables()['extra_body_html'] ?? []);
-        foreach ($extraHtml as $fragment) {
-            $html .= (string) $fragment;
+        if ($extraHtml !== []) {
+            $html = self::insertBeforeClosingTag($html, implode('', array_map('strval', $extraHtml)));
         }
 
         $text = $message->getTextBody() ?? self::htmlToText($html);
         return [$html, $text];
+    }
+
+    /**
+     * Inserts $fragment before </body> when present, else before </html>, else
+     * appends it verbatim. $html may be a bare content fragment (no document
+     * wrapper at all, e.g. the built-in email templates) or a complete
+     * document (e.g. an app-built HTML shell) — a blind append would land
+     * $fragment after </html> in the latter case, which is invalid HTML.
+     *
+     * @param string $html
+     * @param string $fragment
+     *
+     * @return string
+     */
+    private static function insertBeforeClosingTag(string $html, string $fragment): string
+    {
+        foreach (['</body>', '</html>'] as $closingTag) {
+            $pos = stripos($html, $closingTag);
+            if ($pos !== false) {
+                return substr($html, 0, $pos) . $fragment . substr($html, $pos);
+            }
+        }
+
+        return $html . $fragment;
     }
 
     /**
