@@ -200,10 +200,14 @@ class AuditLog
      * @param string      $to      Recipient email address.
      * @param string      $subject Email subject line.
      * @param string|null $error   Driver error message (present on failure only).
+     * @param string|null $id      Caller-supplied correlation id (MailMessage::getCorrelationId()), when set.
      */
-    public function mailAttempt(bool $success, string $to, string $subject, ?string $error = null): void
+    public function mailAttempt(bool $success, string $to, string $subject, ?string $error = null, ?string $id = null): void
     {
         $context = ['success' => $success, 'to' => $to, 'subject' => $subject];
+        if ($id !== null) {
+            $context['id'] = $id;
+        }
         if ($error !== null) {
             $context['error'] = $error;
         }
@@ -215,12 +219,17 @@ class AuditLog
     /**
      * Logs a tracking-pixel open event — the recipient opened the email.
      *
-     * @param string $to       Recipient email address.
-     * @param string $mailType Application-defined mail type (e.g. 'activation', 'password-reset').
+     * @param string      $to       Recipient email address.
+     * @param string      $mailType Application-defined mail type (e.g. 'activation', 'password-reset').
+     * @param string|null $id       Caller-supplied correlation id carried over from the original send, when set.
      */
-    public function mailOpen(string $to, string $mailType): void
+    public function mailOpen(string $to, string $mailType, ?string $id = null): void
     {
-        $this->logger->info('dashboard.mail_open', ['to' => $to, 'mail_type' => $mailType]);
+        $context = ['to' => $to, 'mail_type' => $mailType];
+        if ($id !== null) {
+            $context['id'] = $id;
+        }
+        $this->logger->info('dashboard.mail_open', $context);
     }
 
     /**

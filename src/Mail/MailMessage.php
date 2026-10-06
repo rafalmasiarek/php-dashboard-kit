@@ -80,6 +80,9 @@ class MailMessage
     /** @var \Closure(string): void|null */
     private ?\Closure $onDebugLine = null;
 
+    /** @var string|null Caller-supplied id for audit/log correlation only — never touches SMTP/MIME. */
+    private ?string $correlationId = null;
+
     /**
      * @param string $toEmail Recipient address.
      */
@@ -372,6 +375,22 @@ class MailMessage
     }
 
     /**
+     * Sets an opaque id used purely for audit-log and hook correlation
+     * (AuditLog::mailAttempt()/mailOpen(), and readable by any hook listener
+     * off the message itself) — never written to any header or the SMTP
+     * envelope. Use messageId() instead when the id must appear on the wire.
+     *
+     * @param string $id
+     *
+     * @return self
+     */
+    public function correlationId(string $id): self
+    {
+        $this->correlationId = $id;
+        return $this;
+    }
+
+    /**
      * Sets a verbatim MIME body, bypassing template()/html()/text() resolution
      * entirely. Used for content types the normal alternative/mixed structure
      * cannot represent.
@@ -547,5 +566,13 @@ class MailMessage
     public function getDebugLineCallback(): ?\Closure
     {
         return $this->onDebugLine;
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getCorrelationId(): ?string
+    {
+        return $this->correlationId;
     }
 }
