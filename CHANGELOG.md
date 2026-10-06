@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.3.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.3.0...v5.3.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* **mail:** fall back to the server hostname for a malformed From address ([#70](https://github.com/rafalmasiarek/php-dashboard-kit/issues/70)) ([88e3860](https://github.com/rafalmasiarek/php-dashboard-kit/commit/88e3860e6fee56f4c6127e685543b29854960516))
+
 ## [5.3.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.2.0...v5.3.0) (2026-10-06)
 
 
