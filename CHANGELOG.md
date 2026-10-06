@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.0.0...v5.1.0) (2026-10-06)
+
+
+### Features
+
+* **mail:** rewrite SmtpDriver on rafalmasiarek/mailer, add replyTo/attach/rawBody ([#64](https://github.com/rafalmasiarek/php-dashboard-kit/issues/64)) ([31adfc2](https://github.com/rafalmasiarek/php-dashboard-kit/commit/31adfc26256b029e3a9ffdc02e619c9a8e7ee598))
+
 ## [5.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v4.8.0...v5.0.0) (2026-10-05)
 
 
