@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.4.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.3.1...v5.4.0) (2026-10-06)
+
+
+### Features
+
+* **mail:** wire TLS/DSN config and DeadLetterStoreInterface into SmtpDriver ([#72](https://github.com/rafalmasiarek/php-dashboard-kit/issues/72)) ([ba51443](https://github.com/rafalmasiarek/php-dashboard-kit/commit/ba51443de3e579da44123dd796538cbb10dc41f2))
+
 ## [5.3.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.3.0...v5.3.1) (2026-10-06)
 
 
