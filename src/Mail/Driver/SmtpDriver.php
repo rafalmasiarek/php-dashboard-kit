@@ -4,11 +4,14 @@ namespace rafalmasiarek\DashboardKit\Mail\Driver;
 
 use rafalmasiarek\DashboardKit\Mail\Exception\MailException;
 use rafalmasiarek\DnsResolver\DnsResolverInterface;
+use rafalmasiarek\Mailer\DeadLetterStoreInterface;
 use rafalmasiarek\Mailer\DkimSigner;
+use rafalmasiarek\Mailer\DsnOptions;
 use rafalmasiarek\Mailer\MimeBuilder;
 use rafalmasiarek\Mailer\RawMimeBody;
 use rafalmasiarek\Mailer\SmtpClient;
 use rafalmasiarek\Mailer\SmtpException;
+use rafalmasiarek\Mailer\TlsOptions;
 
 /**
  * Delivers mail via SMTP using rafalmasiarek/mailer's from-scratch SmtpClient.
@@ -22,19 +25,47 @@ use rafalmasiarek\Mailer\SmtpException;
  *   dkim       — optional ['private_key' => PEM string, 'domain' => ..., 'selector' => ...,
  *                 'headers' => list<string> (default: From, To, Subject, Date, Message-ID)]
  *                 Signing is skipped entirely when 'private_key' is empty/absent.
+ *   tls        — optional ['verify_peer' => bool (default true), 'ca_file' => string,
+ *                 'client_cert_file' => string, 'client_key_file' => string,
+ *                 'client_key_passphrase' => string]
+ *   dsn        — optional ['enabled' => bool (default false), 'ret' => 'HDRS'|'FULL',
+ *                 'notify' => list<'SUCCESS'|'FAILURE'|'DELAY'|'NEVER'>]. Applied to every
+ *                 message when enabled; silently ignored by servers that don't advertise DSN.
  *
  * @package rafalmasiarek\DashboardKit\Mail\Driver
  */
 class SmtpDriver implements MailDriverInterface
 {
+    private readonly TlsOptions $tls;
+
+    private readonly ?DsnOptions $dsn;
+
     /**
-     * @param array<string, mixed> $config SMTP connection parameters.
-     * @param DnsResolverInterface $dns    Resolver used to pin the connection's target IP.
+     * @param array<string, mixed>          $config          SMTP connection parameters.
+     * @param DnsResolverInterface           $dns             Resolver used to pin the connection's target IP.
+     * @param DeadLetterStoreInterface|null $deadLetterStore Receives a FailedDelivery on any send failure, when set.
      */
     public function __construct(
         private readonly array $config,
         private readonly DnsResolverInterface $dns,
+        private readonly ?DeadLetterStoreInterface $deadLetterStore = null,
     ) {
+        $tlsConfig  = (array) ($config['tls'] ?? []);
+        $this->tls = new TlsOptions(
+            verifyPeer: (bool) ($tlsConfig['verify_peer'] ?? true),
+            caFile: isset($tlsConfig['ca_file']) ? (string) $tlsConfig['ca_file'] : null,
+            clientCertFile: isset($tlsConfig['client_cert_file']) ? (string) $tlsConfig['client_cert_file'] : null,
+            clientKeyFile: isset($tlsConfig['client_key_file']) ? (string) $tlsConfig['client_key_file'] : null,
+            clientKeyPassphrase: isset($tlsConfig['client_key_passphrase']) ? (string) $tlsConfig['client_key_passphrase'] : null,
+        );
+
+        $dsnConfig  = (array) ($config['dsn'] ?? []);
+        $this->dsn = (bool) ($dsnConfig['enabled'] ?? false)
+            ? new DsnOptions(
+                ret: (string) ($dsnConfig['ret'] ?? 'HDRS'),
+                notify: (array) ($dsnConfig['notify'] ?? ['FAILURE', 'DELAY']),
+            )
+            : null;
     }
 
     /**
@@ -45,6 +76,8 @@ class SmtpDriver implements MailDriverInterface
         $rawBody = $mail->contentType !== null
             ? new RawMimeBody($mail->htmlBody, $mail->contentType, $mail->encoding ?? '8bit')
             : null;
+
+        $messageId = $mail->messageId ?? self::generateMessageId($mail->fromEmail);
 
         $message = MimeBuilder::build(
             fromEmail: $mail->fromEmail,
@@ -57,7 +90,7 @@ class SmtpDriver implements MailDriverInterface
             textBody: $rawBody === null ? $mail->textBody : null,
             attachments: $mail->attachments,
             rawBody: $rawBody,
-            messageId: $mail->messageId ?? self::generateMessageId($mail->fromEmail),
+            messageId: $messageId,
             cc: $mail->cc,
             embeds: $mail->embeds,
             customHeaders: $mail->customHeaders,
@@ -75,7 +108,15 @@ class SmtpDriver implements MailDriverInterface
             $envelopeRecipients[] = $addr['email'];
         }
 
-        $client = new SmtpClient($this->dns);
+        $dsn = $this->dsn !== null
+            ? new DsnOptions($this->dsn->ret, $this->dsn->notify, $messageId)
+            : null;
+
+        $client = new SmtpClient(
+            $this->dns,
+            deadLetterStore: $this->deadLetterStore,
+            tls: $this->tls,
+        );
         if ($mail->onDebugLine !== null) {
             $client->setDebugCallback($mail->onDebugLine);
         }
@@ -90,6 +131,7 @@ class SmtpDriver implements MailDriverInterface
                 $mail->envelopeFrom ?? $mail->fromEmail,
                 $envelopeRecipients,
                 $message,
+                $dsn,
             );
         } catch (SmtpException $e) {
             throw new MailException('SMTP delivery failed: ' . $e->getMessage(), 0, $e);
