@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.4.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.4.0...v5.4.1) (2026-10-07)
+
+
+### Miscellaneous Chores
+
+* **deps:** bump rafalmasiarek/dns-resolver to ^0.2.0 ([#74](https://github.com/rafalmasiarek/php-dashboard-kit/issues/74)) ([6d378c2](https://github.com/rafalmasiarek/php-dashboard-kit/commit/6d378c22953d5db826f9aded693296882a631e90))
+
 ## [5.4.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.3.1...v5.4.0) (2026-10-06)
 
 
