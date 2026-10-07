@@ -15,7 +15,7 @@
     "rafalmasiarek/authkit": "^2.1.2",
     "rafalmasiarek/csrf-token": "^1.6",
     "rafalmasiarek/real-ip-resolver": "^2.3",
-    "rafalmasiarek/dns-resolver": "^0.1.0",
+    "rafalmasiarek/dns-resolver": "^0.2.0",
     "rafalmasiarek/http-client": "^2.0",
     "rafalmasiarek/mailer": "^0.3.0",
     "filp/whoops": "^2.15",
