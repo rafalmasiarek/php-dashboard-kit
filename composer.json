@@ -16,7 +16,7 @@
     "rafalmasiarek/csrf-token": "^1.6",
     "rafalmasiarek/real-ip-resolver": "^2.3",
     "rafalmasiarek/dns-resolver": "^0.2.0",
-    "rafalmasiarek/http-client": "^2.0",
+    "rafalmasiarek/http-client": "^3.0",
     "rafalmasiarek/mailer": "^0.3.0",
     "filp/whoops": "^2.15",
     "monolog/monolog": "^3.0"
