@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.4.2](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.4.1...v5.4.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* **deps:** bump rafalmasiarek/http-client to ^3.0 ([#76](https://github.com/rafalmasiarek/php-dashboard-kit/issues/76)) ([e874a17](https://github.com/rafalmasiarek/php-dashboard-kit/commit/e874a175284131b408c1bf230ebf2561a323342e))
+
 ## [5.4.1](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.4.0...v5.4.1) (2026-10-07)
 
 
