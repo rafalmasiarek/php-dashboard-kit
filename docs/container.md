@@ -85,11 +85,13 @@ Messages are automatically injected as the `flash` Twig global — no need to pa
 
 ### `rafalmasiarek\Csrf\Csrf`
 
-CSRF token service. Requires the `APP_KEY` environment variable (32-byte hex string).
+CSRF token service. Requires the `CSRF_SECRET` environment variable (32-byte hex string) —
+independent of `APP_KEY`, which is used elsewhere (e.g. `RequestLogSanitizer`) and shares no
+key material with this.
 
 ```bash
 # Generate a key:
-php -r "echo bin2hex(random_bytes(16));"
+php -r "echo bin2hex(random_bytes(32));"
 ```
 
 Used internally by `CsrfMiddleware`. In Twig, use `{{ csrf_field('my-form') }}` to render hidden fields. You do not typically resolve this directly.
