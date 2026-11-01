@@ -596,11 +596,11 @@ class Dashboard
         $container->set(Flash::class, static fn() => new Flash());
 
         $container->set(Csrf::class, static function (ContainerInterface $c) {
-            $keyRaw = (string) (getenv('APP_KEY') ?: '');
+            $keyRaw = (string) (getenv('CSRF_SECRET') ?: '');
             if ($keyRaw === '') {
                 throw new \RuntimeException(
-                    'APP_KEY environment variable is required. ' .
-                    'Generate with: php -r "echo bin2hex(random_bytes(16));"'
+                    'CSRF_SECRET environment variable is required. ' .
+                    'Generate with: php -r "echo bin2hex(random_bytes(32));"'
                 );
             }
             // Accept a 64-char hex string (hex of 32 bytes) or a raw 32-char key.
