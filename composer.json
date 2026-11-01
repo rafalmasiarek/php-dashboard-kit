@@ -13,7 +13,7 @@
     "slim/twig-view": "^3.3",
     "php-di/php-di": "^6.4 || ^7.0",
     "rafalmasiarek/authkit": "^2.1.2",
-    "rafalmasiarek/csrf-token": "^1.6",
+    "rafalmasiarek/csrf-token": "^1.7",
     "rafalmasiarek/real-ip-resolver": "^2.3",
     "rafalmasiarek/dns-resolver": "^0.2.0",
     "rafalmasiarek/http-client": "^3.0",
