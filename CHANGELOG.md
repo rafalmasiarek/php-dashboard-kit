@@ -1,5 +1,21 @@
 # Changelog
 
+## [6.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.4.2...v6.0.0) (2026-11-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **csrf:** a deployment that only sets APP_KEY (no CSRF_SECRET) will now fail at boot with "CSRF_SECRET environment variable is required."
+
+### Bug Fixes
+
+* **csrf:** read CSRF_SECRET instead of APP_KEY for the Csrf::class binding ([#79](https://github.com/rafalmasiarek/php-dashboard-kit/issues/79)) ([17ddf3b](https://github.com/rafalmasiarek/php-dashboard-kit/commit/17ddf3bab6326ee585fa9f2a11b2947007514159))
+
+
+### Miscellaneous Chores
+
+* **deps:** bump rafalmasiarek/csrf-token to ^1.7 ([#81](https://github.com/rafalmasiarek/php-dashboard-kit/issues/81)) ([7f9e2ec](https://github.com/rafalmasiarek/php-dashboard-kit/commit/7f9e2ece5e23b5668c2a5e3ffbb21763fea127dd))
+
 ## [5.4.2](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.4.1...v5.4.2) (2026-10-08)
 
 
