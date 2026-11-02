@@ -1,5 +1,13 @@
 # Changelog
 
+## [6.1.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v6.0.0...v6.1.0) (2026-11-02)
+
+
+### Features
+
+* add mail_sending plugin hook with isolated multi-listener dispatch ([5093d4a](https://github.com/rafalmasiarek/php-dashboard-kit/commit/5093d4ae80bb364384f965595ef49b45d17ffc24))
+* **mail:** add mail_sending plugin hook with isolated multi-listener dispatch ([52eff8b](https://github.com/rafalmasiarek/php-dashboard-kit/commit/52eff8b5fb0eb7e19d7b5e2e2e7fbe0b7e415271))
+
 ## [6.0.0](https://github.com/rafalmasiarek/php-dashboard-kit/compare/v5.4.2...v6.0.0) (2026-11-01)
 
 
