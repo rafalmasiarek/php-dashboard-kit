@@ -21,8 +21,13 @@ use Slim\Views\Twig;
  * expression in Dashboard::buildContainer().
  *
  * Hooks emitted:
- *   mail_sent   (MailMessage $message)               — after successful delivery
- *   mail_failed (MailMessage $message, \Throwable $e) — on delivery failure (exception is re-thrown)
+ *   mail_sending (MailMessage $message)               — before delivery, via HookRegistry::addListener()
+ *                                                        only; a listener may still mutate $message
+ *                                                        (e.g. appendBodyHtml()) and can never block
+ *                                                        delivery, since a throwing listener is caught
+ *                                                        and logged by HookRegistry::emit() itself
+ *   mail_sent    (MailMessage $message)               — after successful delivery
+ *   mail_failed  (MailMessage $message, \Throwable $e) — on delivery failure (exception is re-thrown)
  *
  * @package rafalmasiarek\DashboardKit\Mail
  */
@@ -47,8 +52,13 @@ class Mailer implements MailerInterface
     }
 
     /**
-     * Renders the message, hands it off to the configured driver, and emits a result hook.
+     * Emits 'mail_sending', then renders the message, hands it off to the
+     * configured driver, and emits a result hook.
      *
+     * Before anything else: emits 'mail_sending' with (MailMessage $message)
+     * — addListener()-only, so a plugin that wants to mutate $message before
+     * delivery (e.g. append a tracking pixel) always runs here, never as a
+     * replacement for this class's own MailerInterface binding.
      * On success: emits 'mail_sent'   with (MailMessage $message).
      * On failure: emits 'mail_failed' with (MailMessage $message, \Throwable $e), then re-throws.
      *
@@ -59,6 +69,8 @@ class Mailer implements MailerInterface
      */
     public function send(MailMessage $message): void
     {
+        $this->hooks->emit('mail_sending', $message);
+
         $rawBody = $message->getRawBody();
 
         if ($rawBody !== null) {
