@@ -752,7 +752,7 @@ class Dashboard
         );
 
         $container->set(HookRegistry::class, static function (ContainerInterface $c) use ($requireActivation) {
-            $hooks = new HookRegistry();
+            $hooks = new HookRegistry($c->get('logger.app'));
             $flash = $c->get(Flash::class);
             if (!$requireActivation) {
                 $hooks->on('register', static function (\AuthKit\User $user) use ($c, $flash) {
