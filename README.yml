@@ -21,7 +21,7 @@ context:
   - |
     Slim 4 dashboard framework. Provides module auto-discovery, dynamic navbar, session-based auth (via AuthKit), CSRF protection, Twig templating, structured logging, mail, and a plugin extension system.
 
-includes:
+footer_includes:
   - docs/usage.md
   - docs/database.md
   - docs/extensions.md
